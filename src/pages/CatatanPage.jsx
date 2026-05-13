@@ -42,7 +42,6 @@ export default function CatatanPage() {
   // Filter & pagination state
   const [search, setSearch] = useState('');
   const [kategoriFilter, setKategoriFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
 
   // Form state
@@ -73,7 +72,7 @@ export default function CatatanPage() {
 
   // Fetch catatan
   const { data: result = { data: [], count: 0, totalPages: 1 }, isLoading } = useQuery({
-    queryKey: [QUERY_KEYS.CATATAN, { search, kategoriFilter, statusFilter, page }],
+    queryKey: [QUERY_KEYS.CATATAN, { search, kategoriFilter, page }],
     queryFn: async () => {
       let query = supabase
         .from('data_catatan')
@@ -82,7 +81,6 @@ export default function CatatanPage() {
 
       if (search) query = query.or(`nama_customer.ilike.%${search}%,no_telp.ilike.%${search}%,info_percakapan.ilike.%${search}%`);
       if (kategoriFilter) query = query.eq('kategori_id', kategoriFilter);
-      if (statusFilter)   query = query.eq('status_wa', statusFilter);
 
       const from = (page - 1) * PAGE_SIZE;
       query = query.range(from, from + PAGE_SIZE - 1);
@@ -243,7 +241,6 @@ export default function CatatanPage() {
 
   const handleSearchChange = (val) => { setSearch(val); setPage(1); };
   const handleKategoriFilter = (val) => { setKategoriFilter(val); setPage(1); };
-  const handleStatusFilter = (val) => { setStatusFilter(val); setPage(1); };
 
   const getKategoriColor = (nama) => {
     if (!nama) return 'border-l-gray-400';
@@ -259,7 +256,7 @@ export default function CatatanPage() {
     return map[colors[nama.charCodeAt(0) % colors.length]];
   };
 
-  const hasActiveFilter = search || kategoriFilter || statusFilter;
+  const hasActiveFilter = search || kategoriFilter;
 
   return (
     <div className="min-h-screen">
@@ -373,7 +370,7 @@ export default function CatatanPage() {
           <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-600">
             <Filter className="w-4 h-4" /> Filter & Pencarian
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input type="text" placeholder="Cari nama, telp, info..." value={search} onChange={(e) => handleSearchChange(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
@@ -382,13 +379,9 @@ export default function CatatanPage() {
               <option value="">Semua Kategori</option>
               {kategoris.map((k) => (<option key={k.id} value={k.id}>{k.nama}</option>))}
             </select>
-            <select value={statusFilter} onChange={(e) => handleStatusFilter(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <option value="">Semua Status WA</option>
-              {STATUS_WA_OPTIONS.map(s => (<option key={s} value={s}>{s}</option>))}
-            </select>
           </div>
           {hasActiveFilter && (
-            <button onClick={() => { handleSearchChange(''); handleKategoriFilter(''); handleStatusFilter(''); }} className="mt-3 text-sm text-red-500 hover:text-red-700 underline">
+            <button onClick={() => { handleSearchChange(''); handleKategoriFilter(''); }} className="mt-3 text-sm text-red-500 hover:text-red-700 underline">
               Reset Filter
             </button>
           )}

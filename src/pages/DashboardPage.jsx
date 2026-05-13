@@ -1,22 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, Clock, XCircle, TrendingUp,
-  AlertTriangle, User, Calendar, MessageSquare, BadgeCheck,
-  CheckCircle, FileText, Package, CalendarX
+  AlertTriangle, User, Calendar, BadgeCheck,
+  CheckCircle, FileText, Package, CalendarX, Phone, Building
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { QUERY_KEYS } from '@/lib/constants';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
 import Modal from '@/components/common/Modal';
 import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
-// ── Mini task card ──────────────────────────────────────────────
-function TaskCard({ task, onAction, showAction = true }) {
+const STATUS_WA_OPTIONS = ['Belum Dihubungi', 'Sudah Dihubungi', 'Proses', 'Selesai'];
+const STATUS_WA_STYLE = {
+  'Belum Dihubungi': { dot: 'bg-gray-400',   badge: 'bg-gray-100 text-gray-700' },
+  'Sudah Dihubungi': { dot: 'bg-blue-400',   badge: 'bg-blue-100 text-blue-700' },
+  'Proses':          { dot: 'bg-yellow-400', badge: 'bg-yellow-100 text-yellow-700' },
+  'Selesai':         { dot: 'bg-green-500',  badge: 'bg-green-100 text-green-700' },
+};
+
+// ── Mini task card (read-only on dashboard) ─────────────────────
+function TaskCard({ task }) {
   const getStatusColor = (s) => {
     if (s === 'Selesai') return 'bg-green-100 text-green-700 border-green-200';
     if (s === 'Cancel') return 'bg-red-100 text-red-700 border-red-200';
@@ -48,19 +55,11 @@ function TaskCard({ task, onAction, showAction = true }) {
           <BadgeCheck className="w-3 h-3" /><span>{task.employees.name}</span>
         </div>
       )}
-      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+      <div className="flex items-center pt-3 border-t border-gray-100">
         <div className="flex items-center gap-1 text-xs text-gray-400">
           <Calendar className="w-3 h-3" />
           <span>{new Date(task.created_at).toLocaleDateString('id-ID')}</span>
         </div>
-        {showAction && onAction && (
-          <button
-            onClick={() => onAction(task)}
-            className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-medium flex items-center gap-1"
-          >
-            <MessageSquare className="w-3 h-3" /> Action
-          </button>
-        )}
       </div>
     </div>
   );
@@ -193,8 +192,11 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [actionModal, setActionModal] = useState({ isOpen: false, task: null });
-  const [employees, setEmployees] = useState([]);
+
+  // Overdue catatan modal state
+  const [overdueModal, setOverdueModal] = useState(null);
+  const [overdueStatus, setOverdueStatus] = useState('Sudah Dihubungi');
+  const [overdueKeterangan, setOverdueKeterangan] = useState('');
 
   // Fetch stats
   const { data: stats } = useQuery({
@@ -321,48 +323,35 @@ export default function DashboardPage() {
     enabled: !!user,
   });
 
-  // Update task mutation (for action modal)
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, status, comment, employee_id }) => {
+  // Update status catatan overdue
+  const updateOverdueMutation = useMutation({
+    mutationFn: async ({ id, status_wa, keterangan }) => {
       const { error } = await supabase
-        .from('tasks')
-        .update({ status, comment, employee_id, updated_at: new Date().toISOString() })
+        .from('data_catatan')
+        .update({ status_wa, info_percakapan: keterangan || overdueModal?.info_percakapan })
         .eq('id', id);
       if (error) throw error;
+      await supabase.from('notifications').insert([{
+        message: `Status follow-up overdue "${overdueModal?.nama_customer}" diubah ke "${status_wa}"`,
+        type: 'update',
+      }]);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEYS.TASKS]);
-      queryClient.invalidateQueries([QUERY_KEYS.STATS]);
-      queryClient.invalidateQueries([QUERY_KEYS.REMINDERS]);
-      queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
-      queryClient.invalidateQueries(['catatan_barang_dashboard']);
       queryClient.invalidateQueries(['catatan_overdue']);
-      setActionModal({ isOpen: false, task: null });
+      queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
+      setOverdueModal(null);
     },
   });
 
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      const { data } = await supabase.from('employees').select('id, name').order('name');
-      if (data) setEmployees(data);
-    };
-    if (user) fetchEmployees();
-  }, [user]);
+  const openOverdueModal = (catatan) => {
+    setOverdueModal(catatan);
+    setOverdueStatus(catatan.status_wa || 'Belum Dihubungi');
+    setOverdueKeterangan(catatan.info_percakapan || '');
+  };
 
   const pendingTasks = allTasks.filter(t => t.status === 'Pending');
   const completedTasks = allTasks.filter(t => t.status === 'Selesai' || t.status === 'Cancel');
   const hasUrgent = reminders.some(r => r.severity === 'urgent');
-
-  const handleUpdateStatus = (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    updateMutation.mutate({
-      id: actionModal.task.id,
-      status: fd.get('status'),
-      comment: fd.get('comment'),
-      employee_id: fd.get('employee_id') || null,
-    });
-  };
 
   const getKategoriBadge = (nama) => {
     if (!nama) return 'bg-gray-100 text-gray-600';
@@ -470,7 +459,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {pendingTasks.map((task, index) => (
                 <motion.div key={task.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
-                  <TaskCard task={task} onAction={(t) => setActionModal({ isOpen: true, task: t })} />
+                  <TaskCard task={task} />
                 </motion.div>
               ))}
             </div>
@@ -492,7 +481,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {completedTasks.slice(0, 9).map((task, index) => (
                 <motion.div key={task.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
-                  <TaskCard task={task} showAction={false} />
+                  <TaskCard task={task} />
                 </motion.div>
               ))}
             </div>
@@ -549,10 +538,13 @@ export default function DashboardPage() {
                 const diffDays = Math.floor(diffMs / 86400000);
                 const diffHours = Math.floor((diffMs % 86400000) / 3600000);
                 const overdueLabel = diffDays > 0 ? `${diffDays} hari yang lalu` : `${diffHours} jam yang lalu`;
+                const statusStyle = STATUS_WA_STYLE[c.status_wa || 'Belum Dihubungi'];
                 return (
                   <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.04 }}
-                    className="bg-white rounded-xl shadow border-2 border-red-300 p-4">
+                    className="bg-white rounded-xl shadow border-2 border-red-300 p-4 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => openOverdueModal(c)}
+                  >
                     <div className="flex items-start justify-between mb-2">
                       <p className="font-semibold text-gray-900 text-sm line-clamp-1">{c.nama_customer}</p>
                       {kategoriNama && (
@@ -567,7 +559,10 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
                       <span>{c.users?.username}</span>
-                      <button onClick={() => navigate('/catatan')} className="text-xs text-blue-600 hover:underline font-medium">Update Status →</button>
+                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle.badge}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}></span>
+                        {c.status_wa || 'Belum Dihubungi'}
+                      </span>
                     </div>
                   </motion.div>
                 );
@@ -650,35 +645,104 @@ export default function DashboardPage() {
 
       </motion.div>
 
-      {/* Action Modal */}
-      <Modal isOpen={actionModal.isOpen} onClose={() => setActionModal({ isOpen: false, task: null })} title="Update Status Task" size="md">
-        <form onSubmit={handleUpdateStatus} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-            <select name="status" defaultValue={actionModal.task?.status || 'Pending'} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" required>
-              <option value="Selesai">Selesai</option>
-              <option value="Cancel">Cancel</option>
-              <option value="Pending">Pending</option>
-            </select>
+      {/* ── Overdue Catatan Modal ── */}
+      <Modal
+        isOpen={!!overdueModal}
+        onClose={() => setOverdueModal(null)}
+        title="Action Catatan Overdue"
+        size="md"
+      >
+        {overdueModal && (
+          <div className="space-y-4">
+
+            {/* Info catatan */}
+            <div className="p-4 bg-red-50 rounded-xl border border-red-200">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-bold text-gray-900 text-base">{overdueModal.nama_customer}</p>
+                  {overdueModal.no_telp && (
+                    <div className="flex items-center gap-1 text-sm text-gray-600 mt-0.5">
+                      <Phone className="w-3 h-3" /> {overdueModal.no_telp}
+                    </div>
+                  )}
+                  {overdueModal.cabang && (
+                    <div className="flex items-center gap-1 text-sm text-gray-600 mt-0.5">
+                      <Building className="w-3 h-3" /> {overdueModal.cabang}
+                    </div>
+                  )}
+                </div>
+                {overdueModal.catatan_kategori?.nama && (
+                  <span className="px-2 py-0.5 bg-white border border-red-200 text-red-600 rounded-full text-xs font-medium ml-2 shrink-0">
+                    {overdueModal.catatan_kategori.nama}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-100 rounded-lg">
+                <CalendarX className="w-3 h-3 text-red-600 shrink-0" />
+                <span className="text-xs text-red-700 font-semibold">
+                  Deadline: {new Date(overdueModal.deadline).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                </span>
+              </div>
+            </div>
+
+            {/* Status Follow-Up */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Status Follow-Up</label>
+              <div className="grid grid-cols-2 gap-2">
+                {STATUS_WA_OPTIONS.map((s) => {
+                  const st = STATUS_WA_STYLE[s];
+                  const isSelected = overdueStatus === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setOverdueStatus(s)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                        isSelected ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`}></span>
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Keterangan / update info */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Keterangan / Update Info</label>
+              <textarea
+                value={overdueKeterangan}
+                onChange={(e) => setOverdueKeterangan(e.target.value)}
+                rows="3"
+                placeholder="Tulis update atau keterangan terbaru..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm bg-gray-50"
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 pt-2 border-t">
+              <button
+                onClick={() => setOverdueModal(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium text-sm"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => updateOverdueMutation.mutate({
+                  id: overdueModal.id,
+                  status_wa: overdueStatus,
+                  keterangan: overdueKeterangan,
+                })}
+                disabled={updateOverdueMutation.isLoading}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-semibold text-sm disabled:opacity-50"
+              >
+                <CheckCircle className="w-4 h-4" />
+                {updateOverdueMutation.isLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Dikerjakan Oleh</label>
-            <select name="employee_id" defaultValue={actionModal.task?.employee_id || ''} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50">
-              <option value="">-- Pilih Karyawan --</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Keterangan</label>
-            <textarea name="comment" defaultValue={actionModal.task?.comment || ''} rows="3" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" required />
-          </div>
-          <div className="flex gap-3 justify-end pt-4">
-            <button type="button" onClick={() => setActionModal({ isOpen: false, task: null })} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">Batal</button>
-            <button type="submit" disabled={updateMutation.isLoading} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium disabled:opacity-50">
-              {updateMutation.isLoading ? 'Menyimpan...' : 'Update Status'}
-            </button>
-          </div>
-        </form>
+        )}
       </Modal>
     </div>
   );
