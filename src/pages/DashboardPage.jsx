@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, Clock, XCircle, TrendingUp,
   AlertTriangle, User, Calendar, MessageSquare, BadgeCheck,
-  CheckCircle, FileText, Package
+  CheckCircle, FileText, Package, CalendarX
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -302,6 +302,25 @@ export default function DashboardPage() {
     enabled: !!user,
   });
 
+  // Fetch overdue catatan (deadline sudah lewat, status bukan Selesai)
+  const { data: overdueCatatan = [] } = useQuery({
+    queryKey: ['catatan_overdue'],
+    queryFn: async () => {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('data_catatan')
+        .select('*, users:user_id(username), catatan_kategori:kategori_id(id, nama)')
+        .not('deadline', 'is', null)
+        .lt('deadline', now)
+        .neq('status_wa', 'Selesai')
+        .order('deadline', { ascending: true })
+        .limit(12);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
   // Update task mutation (for action modal)
   const updateMutation = useMutation({
     mutationFn: async ({ id, status, comment, employee_id }) => {
@@ -317,6 +336,7 @@ export default function DashboardPage() {
       queryClient.invalidateQueries([QUERY_KEYS.REMINDERS]);
       queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
       queryClient.invalidateQueries(['catatan_barang_dashboard']);
+      queryClient.invalidateQueries(['catatan_overdue']);
       setActionModal({ isOpen: false, task: null });
     },
   });
@@ -505,6 +525,53 @@ export default function DashboardPage() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Overdue Catatan ── */}
+        {overdueCatatan.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <CalendarX className="w-5 h-5 text-red-500" />
+                <span className="text-red-600">Catatan Overdue</span>
+                <span className="ml-1 px-2 py-0.5 bg-red-100 text-red-700 text-sm font-bold rounded-full">{overdueCatatan.length}</span>
+              </h3>
+              <button onClick={() => navigate('/catatan')} className="text-sm text-red-600 hover:underline">
+                Lihat Semua Catatan →
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {overdueCatatan.map((c, index) => {
+                const kategoriNama = c.catatan_kategori?.nama;
+                const diffMs = Date.now() - new Date(c.deadline).getTime();
+                const diffDays = Math.floor(diffMs / 86400000);
+                const diffHours = Math.floor((diffMs % 86400000) / 3600000);
+                const overdueLabel = diffDays > 0 ? `${diffDays} hari yang lalu` : `${diffHours} jam yang lalu`;
+                return (
+                  <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.04 }}
+                    className="bg-white rounded-xl shadow border-2 border-red-300 p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <p className="font-semibold text-gray-900 text-sm line-clamp-1">{c.nama_customer}</p>
+                      {kategoriNama && (
+                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium ml-2 shrink-0">{kategoriNama}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 line-clamp-2 mb-2">{c.info_percakapan}</p>
+                    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-50 rounded-lg mb-2">
+                      <CalendarX className="w-3 h-3 text-red-500 shrink-0" />
+                      <span className="text-xs text-red-700 font-semibold">Lewat {overdueLabel}</span>
+                      <span className="text-xs text-red-400 ml-auto">{new Date(c.deadline).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
+                      <span>{c.users?.username}</span>
+                      <button onClick={() => navigate('/catatan')} className="text-xs text-blue-600 hover:underline font-medium">Update Status →</button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
         )}

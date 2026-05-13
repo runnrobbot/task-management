@@ -31,6 +31,7 @@ dist-ssr
 supabase-schema.sql
 supabase-migration.sql
 migration-status-barang.sql
+migration-catatan-deadline.sql
 
 
 # Build files

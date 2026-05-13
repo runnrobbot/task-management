@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Package, Search, X, Filter, FileText, Phone, Building,
-  User, Clock, Image as ImageIcon, CheckCircle, Loader2, AlertCircle
+  User, Clock, Image as ImageIcon, CheckCircle, Loader2, AlertCircle,
+  MessageCircle
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -20,6 +21,14 @@ const STATUS_COLOR = {
   'Kosong':           { badge: 'bg-red-100 text-red-800',      border: 'border-l-red-400',    icon: <AlertCircle className="w-4 h-4 text-red-500" /> },
 };
 
+// Format nomor WA internasional
+function formatWaNumber(noTelp) {
+  if (!noTelp) return '';
+  let num = noTelp.replace(/[^0-9]/g, '');
+  if (num.startsWith('0')) num = '62' + num.substring(1);
+  return num;
+}
+
 export default function BarangKosongPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
@@ -29,6 +38,21 @@ export default function BarangKosongPage() {
   const [page, setPage]                 = useState(1);
   const [imageModalUrl, setImageModalUrl]   = useState(null);
   const [statusModal, setStatusModal]       = useState(null); // { catatan, newStatus }
+  const [actionModal, setActionModal]       = useState(null); // { catatan } — for WA + status
+
+  // WA message state
+  const [waPesan, setWaPesan] = useState('');
+  const [waNewStatus, setWaNewStatus] = useState('Proses Pengadaan');
+  const [employees, setEmployees] = useState([]);
+
+  // Fetch employees for action modal
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      const { data } = await supabase.from('employees').select('id, name').order('name');
+      if (data) setEmployees(data);
+    };
+    if (user) fetchEmployees();
+  }, [user]);
 
   // ── Query: Catatan Barang Masuk ───────────────────────────────
   const { data: result = { data: [], count: 0, totalPages: 1 }, isLoading } = useQuery({
@@ -79,12 +103,36 @@ export default function BarangKosongPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['catatan_barang_masuk']);
+      queryClient.invalidateQueries(['catatan_barang_dashboard']);
       setStatusModal(null);
+      setActionModal(null);
     },
   });
 
   const handleSearchChange = (val) => { setSearch(val); setPage(1); };
   const handleStatusChange = (val) => { setStatusFilter(val); setPage(1); };
+
+  // Open WA action modal
+  const openActionModal = (catatan) => {
+    const status = catatan.status_barang || 'Kosong';
+    setActionModal({ catatan });
+    setWaNewStatus(status === 'Tersedia' ? 'Tersedia' : 'Proses Pengadaan');
+    setWaPesan(`Halo Kak ${catatan.nama_customer}, terkait permintaan barang yang sebelumnya kosong, kami ingin menginformasikan update terbaru. Silahkan hubungi kami kembali untuk info lebih lanjut.`);
+  };
+
+  // Kirim WA + update status
+  const handleKirimWa = () => {
+    const waNum = formatWaNumber(actionModal.catatan.no_telp);
+    if (!waNum) return;
+    updateStatusMutation.mutate({ id: actionModal.catatan.id, status: waNewStatus });
+    const url = `https://wa.me/${waNum}?text=${encodeURIComponent(waPesan)}`;
+    window.open(url, '_blank');
+  };
+
+  // Update status saja
+  const handleUpdateStatusSaja = () => {
+    updateStatusMutation.mutate({ id: actionModal.catatan.id, status: waNewStatus });
+  };
 
   const statsCount = (status) => result.data.filter(c => (c.status_barang || 'Kosong') === status).length;
 
@@ -117,7 +165,7 @@ export default function BarangKosongPage() {
         {/* ── Filter ── */}
         <div className="bg-white p-4 rounded-xl shadow mb-6">
           <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-600">
-            <Filter className="w-4 h-4" /> Filter & Pencarian
+            <Filter className="w-4 h-4" /> Filter &amp; Pencarian
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
@@ -168,6 +216,7 @@ export default function BarangKosongPage() {
               {result.data.map((c, index) => {
                 const status = c.status_barang || 'Kosong';
                 const style  = STATUS_COLOR[status] || STATUS_COLOR['Kosong'];
+                const waNum  = formatWaNumber(c.no_telp);
                 return (
                   <motion.div
                     key={c.id}
@@ -226,13 +275,25 @@ export default function BarangKosongPage() {
                         </div>
                       </div>
 
-                      {/* Tombol ubah status — semua role bisa */}
-                      <button
-                        onClick={() => setStatusModal({ catatan: c, newStatus: status })}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-sm font-medium"
-                      >
-                        Ubah Status Barang
-                      </button>
+                      {/* Action buttons */}
+                      <div className="flex gap-2">
+                        {/* Kirim WA + update status */}
+                        {waNum && (
+                          <button
+                            onClick={() => openActionModal(c)}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> WA &amp; Status
+                          </button>
+                        )}
+                        {/* Ubah status saja */}
+                        <button
+                          onClick={() => setStatusModal({ catatan: c, newStatus: status })}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-sm font-medium"
+                        >
+                          Ubah Status
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -256,7 +317,7 @@ export default function BarangKosongPage() {
         </div>
       )}
 
-      {/* ── Modal Ubah Status ── */}
+      {/* ── Modal Ubah Status Saja ── */}
       <Modal
         isOpen={!!statusModal}
         onClose={() => setStatusModal(null)}
@@ -304,6 +365,83 @@ export default function BarangKosongPage() {
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm disabled:opacity-50"
               >
                 {updateStatusMutation.isLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Modal WA + Status (Action Modal) ── */}
+      <Modal isOpen={!!actionModal} onClose={() => setActionModal(null)} title="Hubungi via WhatsApp & Update Status" size="md">
+        {actionModal && (
+          <div className="space-y-4">
+            {/* Info customer */}
+            <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-xl">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Package className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{actionModal.catatan.nama_customer}</p>
+                <p className="text-sm text-gray-500 flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> {actionModal.catatan.no_telp}
+                </p>
+              </div>
+            </div>
+
+            {/* Status barang */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Update Status Barang</label>
+              <div className="grid grid-cols-1 gap-2">
+                {STATUS_OPTIONS.map((s) => {
+                  const st = STATUS_COLOR[s];
+                  const isSelected = waNewStatus === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setWaNewStatus(s)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                        isSelected ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      {st.icon}
+                      <span>{s}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pesan WA */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <span className="flex items-center gap-1.5 text-green-700"><MessageCircle className="w-4 h-4" /> Pesan WhatsApp</span>
+              </label>
+              <textarea
+                value={waPesan}
+                onChange={(e) => setWaPesan(e.target.value)}
+                rows="4"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-transparent text-sm"
+                placeholder="Tulis pesan..."
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 pt-2 border-t">
+              <button
+                onClick={handleKirimWa}
+                disabled={updateStatusMutation.isLoading}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold text-sm disabled:opacity-50"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Kirim WA &amp; Update Status
+              </button>
+              <button
+                onClick={handleUpdateStatusSaja}
+                disabled={updateStatusMutation.isLoading}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium text-sm disabled:opacity-50"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Status Saja
               </button>
             </div>
           </div>

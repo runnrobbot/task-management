@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText, Phone, Building, User, Clock, Edit2, Trash2, Save, X,
-  Search, ImagePlus, Tag, Filter, Image as ImageIcon, MessageCircle,
-  CheckCircle, Loader2, AlertCircle, PhoneCall
+  Search, ImagePlus, Tag, Filter, Image as ImageIcon,
+  CheckCircle, Loader2, AlertCircle, PhoneCall, CalendarClock
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -47,7 +47,7 @@ export default function CatatanPage() {
 
   // Form state
   const [formData, setFormData] = useState({
-    id: '', nama_customer: '', no_telp: '', cabang: '', info_percakapan: '', kategori_id: '',
+    id: '', nama_customer: '', no_telp: '', cabang: '', info_percakapan: '', kategori_id: '', deadline: '',
   });
   const [isEditing, setIsEditing] = useState(false);
   const [imageFile, setImageFile] = useState(null);
@@ -56,10 +56,9 @@ export default function CatatanPage() {
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, imageUrl: null });
   const [imageModalUrl, setImageModalUrl] = useState(null);
 
-  // WA Modal state
-  const [waModal, setWaModal] = useState(null); // { catatan }
-  const [waPesan, setWaPesan] = useState('');
-  const [waNewStatus, setWaNewStatus] = useState('Sudah Dihubungi');
+  // Status Modal state (ubah status saja, tanpa WA)
+  const [statusModal, setStatusModal] = useState(null); // { catatan }
+  const [statusNewValue, setStatusNewValue] = useState('Sudah Dihubungi');
 
   // Fetch kategori
   const { data: kategoris = [] } = useQuery({
@@ -132,6 +131,7 @@ export default function CatatanPage() {
         kategori_id: data.kategori_id || null,
         gambar_url: gambarUrl,
         user_id: user.id,
+        deadline: data.deadline ? new Date(data.deadline).toISOString() : null,
       };
 
       if (data.id) {
@@ -183,15 +183,14 @@ export default function CatatanPage() {
     mutationFn: async ({ id, status_wa }) => {
       const { error } = await supabase.from('data_catatan').update({ status_wa }).eq('id', id);
       if (error) throw error;
-      // Insert notifikasi
       await supabase.from('notifications').insert([{
-        message: `Status follow-up "${waModal?.catatan?.nama_customer}" diubah ke "${status_wa}"`,
+        message: `Status follow-up "${statusModal?.catatan?.nama_customer}" diubah ke "${status_wa}"`,
         type: 'update',
       }]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
-      setWaModal(null);
+      setStatusModal(null);
     },
   });
 
@@ -218,7 +217,10 @@ export default function CatatanPage() {
   const handleSubmit = (e) => { e.preventDefault(); saveMutation.mutate(formData); };
 
   const handleEdit = (catatan) => {
-    setFormData({ id: catatan.id, nama_customer: catatan.nama_customer, no_telp: catatan.no_telp, cabang: catatan.cabang || '', info_percakapan: catatan.info_percakapan, kategori_id: catatan.kategori_id || '' });
+    const deadlineVal = catatan.deadline
+      ? new Date(catatan.deadline).toISOString().slice(0, 16)
+      : '';
+    setFormData({ id: catatan.id, nama_customer: catatan.nama_customer, no_telp: catatan.no_telp, cabang: catatan.cabang || '', info_percakapan: catatan.info_percakapan, kategori_id: catatan.kategori_id || '', deadline: deadlineVal });
     setExistingImageUrl(catatan.gambar_url || null);
     setImagePreview(catatan.gambar_url || null);
     setImageFile(null);
@@ -227,33 +229,16 @@ export default function CatatanPage() {
   };
 
   const resetForm = () => {
-    setFormData({ id: '', nama_customer: '', no_telp: '', cabang: '', info_percakapan: '', kategori_id: '' });
+    setFormData({ id: '', nama_customer: '', no_telp: '', cabang: '', info_percakapan: '', kategori_id: '', deadline: '' });
     setImageFile(null); setImagePreview(null); setExistingImageUrl(null); setIsEditing(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Buka WA modal
-  const openWaModal = (catatan) => {
+  // Buka modal ubah status
+  const openStatusModal = (catatan) => {
     const status = catatan.status_wa || 'Belum Dihubungi';
-    setWaModal({ catatan });
-    setWaNewStatus(status === 'Selesai' ? 'Selesai' : 'Sudah Dihubungi');
-    setWaPesan(`Halo Kak ${catatan.nama_customer}, kami dari Tim ingin menindaklanjuti percakapan kita. Apakah ada yang bisa kami bantu lebih lanjut?`);
-  };
-
-  // Kirim WA + update status
-  const handleKirimWa = () => {
-    const waNum = formatWaNumber(waModal.catatan.no_telp);
-    if (!waNum) return;
-    // Update status dulu
-    updateStatusMutation.mutate({ id: waModal.catatan.id, status_wa: waNewStatus });
-    // Buka WA
-    const url = `https://wa.me/${waNum}?text=${encodeURIComponent(waPesan)}`;
-    window.open(url, '_blank');
-  };
-
-  // Update status saja tanpa buka WA
-  const handleUpdateStatusSaja = () => {
-    updateStatusMutation.mutate({ id: waModal.catatan.id, status_wa: waNewStatus });
+    setStatusModal({ catatan });
+    setStatusNewValue(status);
   };
 
   const handleSearchChange = (val) => { setSearch(val); setPage(1); };
@@ -320,6 +305,24 @@ export default function CatatanPage() {
                   {kategoris.map((k) => (<option key={k.id} value={k.id}>{k.nama}</option>))}
                 </select>
               </div>
+            </div>
+
+            {/* Deadline */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <span className="flex items-center gap-1"><CalendarClock className="w-4 h-4" /> Deadline / Jadwal (Opsional)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={formData.deadline}
+                onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+              />
+              {formData.deadline && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Deadline: {new Date(formData.deadline).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })}
+                </p>
+              )}
             </div>
 
             <div>
@@ -417,7 +420,6 @@ export default function CatatanPage() {
                 const kategoriNama = catatan.catatan_kategori?.nama;
                 const statusWa = catatan.status_wa || 'Belum Dihubungi';
                 const stStyle = STATUS_WA_STYLE[statusWa] || STATUS_WA_STYLE['Belum Dihubungi'];
-                const waNum = formatWaNumber(catatan.no_telp);
 
                 return (
                   <motion.div
@@ -478,6 +480,20 @@ export default function CatatanPage() {
                         </span>
                       </div>
 
+                      {/* Deadline badge */}
+                      {catatan.deadline && (() => {
+                        const dl = new Date(catatan.deadline);
+                        const isOverdue = dl < new Date() && catatan.status_wa !== 'Selesai';
+                        return (
+                          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium mb-2 ${
+                            isOverdue ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
+                          }`}>
+                            <CalendarClock className="w-3 h-3" />
+                            <span>{isOverdue ? '⚠ Overdue · ' : 'Deadline: '}{dl.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                          </div>
+                        );
+                      })()}
+
                       {/* Footer: waktu + aksi */}
                       <div className="flex items-center justify-between pt-3 border-t border-gray-200 gap-2 flex-wrap">
                         <div className="flex items-center gap-1 text-xs text-gray-500">
@@ -485,15 +501,13 @@ export default function CatatanPage() {
                           <span>{new Date(catatan.waktu).toLocaleString('id-ID')}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          {/* Tombol WA — tampil jika ada no telp */}
-                          {waNum && (
-                            <button
-                              onClick={() => openWaModal(catatan)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-semibold"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" /> WA
-                            </button>
-                          )}
+                          {/* Tombol ubah status */}
+                          <button
+                            onClick={() => openStatusModal(catatan)}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-xs font-semibold"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" /> Status
+                          </button>
                           {/* Edit & Delete */}
                           {(user?.role === 'admin' || catatan.user_id === user?.id) && (
                             <>
@@ -529,34 +543,30 @@ export default function CatatanPage() {
         </div>
       )}
 
-      {/* ── Modal WA ── */}
-      <Modal isOpen={!!waModal} onClose={() => setWaModal(null)} title="Hubungi via WhatsApp" size="md">
-        {waModal && (
+      {/* ── Modal Ubah Status ── */}
+      <Modal isOpen={!!statusModal} onClose={() => setStatusModal(null)} title="Ubah Status Follow-Up" size="sm">
+        {statusModal && (
           <div className="space-y-4">
-            {/* Info customer */}
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <MessageCircle className="w-5 h-5 text-green-600" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <User className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">{waModal.catatan.nama_customer}</p>
-                <p className="text-sm text-gray-500 flex items-center gap-1">
-                  <Phone className="w-3 h-3" /> {waModal.catatan.no_telp}
-                </p>
+                <p className="font-semibold text-gray-900">{statusModal.catatan.nama_customer}</p>
+                <p className="text-sm text-gray-500">{statusModal.catatan.no_telp}</p>
               </div>
             </div>
 
-            {/* Status follow-up */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Status Follow-Up</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {STATUS_WA_OPTIONS.map((s) => {
                   const st = STATUS_WA_STYLE[s];
-                  const isSelected = waNewStatus === s;
+                  const isSelected = statusNewValue === s;
                   return (
                     <button
                       key={s}
-                      onClick={() => setWaNewStatus(s)}
+                      onClick={() => setStatusNewValue(s)}
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
                         isSelected ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300 text-gray-700'
                       }`}
@@ -569,37 +579,18 @@ export default function CatatanPage() {
               </div>
             </div>
 
-            {/* Pesan WA */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                <span className="flex items-center gap-1.5 text-green-700"><MessageCircle className="w-4 h-4" /> Pesan WhatsApp</span>
-              </label>
-              <textarea
-                value={waPesan}
-                onChange={(e) => setWaPesan(e.target.value)}
-                rows="4"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-transparent text-sm"
-                placeholder="Tulis pesan..."
-              />
-            </div>
-
-            {/* Action buttons */}
             <div className="flex gap-3 pt-2 border-t">
               <button
-                onClick={handleKirimWa}
-                disabled={updateStatusMutation.isLoading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold text-sm disabled:opacity-50"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Kirim WA & Update Status
-              </button>
+                onClick={() => setStatusModal(null)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium text-sm"
+              >Batal</button>
               <button
-                onClick={handleUpdateStatusSaja}
+                onClick={() => updateStatusMutation.mutate({ id: statusModal.catatan.id, status_wa: statusNewValue })}
                 disabled={updateStatusMutation.isLoading}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium text-sm disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-semibold text-sm disabled:opacity-50"
               >
                 <CheckCircle className="w-4 h-4" />
-                Status Saja
+                {updateStatusMutation.isLoading ? 'Menyimpan...' : 'Simpan Status'}
               </button>
             </div>
           </div>

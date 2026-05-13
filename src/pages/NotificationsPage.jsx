@@ -21,7 +21,7 @@ function getTypeConfig(type) {
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60)    return `${Math.floor(diff)}d yang lalu`;
+  if (diff < 60)    return `${Math.floor(diff)} detik yang lalu`;
   if (diff < 3600)  return `${Math.floor(diff / 60)} menit lalu`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
   return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -32,6 +32,7 @@ export default function NotificationsPage() {
   const queryClient = useQueryClient();
   const [filterRead, setFilterRead]           = useState('all'); // all | unread | read
   const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [deletingId, setDeletingId]           = useState(null); // per-item delete confirm
 
   // ── Query notifikasi ─────────────────────────────────────────
   const { data: notifications = [], isLoading, refetch } = useQuery({
@@ -58,7 +59,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     const channel = supabase
       .channel('notifications-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
         queryClient.invalidateQueries(['notifications']);
       })
       .subscribe();
@@ -88,13 +89,25 @@ export default function NotificationsPage() {
       const { error } = await supabase.from('notifications').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries(['notifications']),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['notifications']);
+      setDeletingId(null);
+    },
   });
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from('notifications').delete().eq('is_read', true);
-      if (error) throw error;
+      // If filter is 'read', delete only read ones; otherwise delete all visible
+      if (filterRead === 'read') {
+        const { error } = await supabase.from('notifications').delete().eq('is_read', true);
+        if (error) throw error;
+      } else {
+        const ids = notifications.map(n => n.id);
+        if (ids.length) {
+          const { error } = await supabase.from('notifications').delete().in('id', ids);
+          if (error) throw error;
+        }
+      }
     },
     onSuccess: () => { queryClient.invalidateQueries(['notifications']); setConfirmClearAll(false); },
   });
@@ -136,7 +149,7 @@ export default function NotificationsPage() {
               <button
                 onClick={() => markAllReadMutation.mutate()}
                 disabled={markAllReadMutation.isLoading}
-                className="flex items-center gap-2 px-3 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-3 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-sm font-medium disabled:opacity-50"
               >
                 <CheckCheck className="w-4 h-4" />
                 Tandai Semua Dibaca
@@ -166,12 +179,13 @@ export default function NotificationsPage() {
               </button>
             ))}
           </div>
-          {filterRead === 'read' && notifications.length > 0 && (
+          {notifications.length > 0 && (
             <button
               onClick={() => setConfirmClearAll(true)}
               className="flex items-center gap-1 text-sm text-red-500 hover:text-red-700 font-medium"
             >
-              <Trash2 className="w-3.5 h-3.5" /> Hapus Semua
+              <Trash2 className="w-3.5 h-3.5" />
+              {filterRead === 'read' ? 'Hapus Yang Dibaca' : 'Hapus Semua'}
             </button>
           )}
         </div>
@@ -225,16 +239,18 @@ export default function NotificationsPage() {
                       {!notif.is_read && (
                         <button
                           onClick={() => markReadMutation.mutate(notif.id)}
+                          disabled={markReadMutation.isLoading}
                           title="Tandai sudah dibaca"
-                          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
                         >
                           <Check className="w-4 h-4" />
                         </button>
                       )}
                       <button
-                        onClick={() => deleteNotifMutation.mutate(notif.id)}
+                        onClick={() => setDeletingId(notif.id)}
+                        disabled={deleteNotifMutation.isLoading}
                         title="Hapus notifikasi"
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -248,13 +264,27 @@ export default function NotificationsPage() {
 
       </motion.div>
 
+      {/* Per-item delete confirm */}
+      <ConfirmDialog
+        isOpen={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        onConfirm={() => deleteNotifMutation.mutate(deletingId)}
+        title="Hapus Notifikasi"
+        message="Yakin ingin menghapus notifikasi ini?"
+        confirmText="Hapus"
+        type="danger"
+      />
+
+      {/* Clear all confirm */}
       <ConfirmDialog
         isOpen={confirmClearAll}
         onClose={() => setConfirmClearAll(false)}
         onConfirm={() => clearAllMutation.mutate()}
-        title="Hapus Semua Notifikasi"
-        message="Yakin ingin menghapus semua notifikasi yang sudah dibaca?"
-        confirmText="Hapus Semua"
+        title={filterRead === 'read' ? 'Hapus Notifikasi yang Dibaca' : 'Hapus Semua Notifikasi'}
+        message={filterRead === 'read'
+          ? 'Yakin ingin menghapus semua notifikasi yang sudah dibaca?'
+          : 'Yakin ingin menghapus SEMUA notifikasi yang tampil saat ini?'}
+        confirmText="Hapus"
         type="danger"
       />
     </div>
