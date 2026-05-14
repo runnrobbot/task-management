@@ -11,7 +11,8 @@ import {
   Bell, 
   FileBarChart,
   Tag,
-  LogOut
+  LogOut,
+  ContactRound,
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen }) {
@@ -22,6 +23,7 @@ export default function Sidebar({ isOpen }) {
     { to: '/catatan', icon: FileText, label: 'Catatan' },
     { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
     { to: '/barang-kosong', icon: Package, label: 'Barang Kosong' },
+    { to: '/customers', icon: ContactRound, label: 'Customer' },
     { to: '/notifications', icon: Bell, label: 'Notifikasi' },
   ];
 

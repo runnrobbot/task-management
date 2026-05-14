@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText, Phone, Building, User, Clock, Edit2, Trash2, Save, X,
   Search, ImagePlus, Tag, Filter, Image as ImageIcon,
-  CheckCircle, Loader2, AlertCircle, PhoneCall, CalendarClock
+  CheckCircle, Loader2, AlertCircle, PhoneCall, CalendarClock, ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -55,9 +55,13 @@ export default function CatatanPage() {
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, imageUrl: null });
   const [imageModalUrl, setImageModalUrl] = useState(null);
 
-  // Status Modal state (ubah status saja, tanpa WA)
   const [statusModal, setStatusModal] = useState(null); // { catatan }
   const [statusNewValue, setStatusNewValue] = useState('Sudah Dihubungi');
+
+  // Combobox state untuk nama_customer
+  const [customerInput, setCustomerInput]   = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const customerInputRef = useRef(null);
 
   // Fetch kategori
   const { data: kategoris = [] } = useQuery({
@@ -69,6 +73,37 @@ export default function CatatanPage() {
     },
     enabled: !!user,
   });
+
+  // Fetch customers milik user ini (untuk dropdown nama_customer)
+  const { data: myCustomers = [] } = useQuery({
+    queryKey: [QUERY_KEYS.CUSTOMERS, 'mine', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, nama, no_hp')
+        .eq('user_id', user.id)
+        .order('nama', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Filter customer berdasarkan input ketikan
+  const filteredCustomers = myCustomers.filter((c) =>
+    c.nama.toLowerCase().includes(customerInput.toLowerCase())
+  );
+
+  // Saat pilih dari dropdown
+  const handleSelectCustomer = (c) => {
+    setFormData((prev) => ({
+      ...prev,
+      nama_customer: c.nama,
+      no_telp: prev.no_telp || c.no_hp || '',
+    }));
+    setCustomerInput(c.nama);
+    setShowCustomerDropdown(false);
+  };
 
   // Fetch catatan
   const { data: result = { data: [], count: 0, totalPages: 1 }, isLoading } = useQuery({
@@ -219,6 +254,7 @@ export default function CatatanPage() {
       ? new Date(catatan.deadline).toISOString().slice(0, 16)
       : '';
     setFormData({ id: catatan.id, nama_customer: catatan.nama_customer, no_telp: catatan.no_telp, cabang: catatan.cabang || '', info_percakapan: catatan.info_percakapan, kategori_id: catatan.kategori_id || '', deadline: deadlineVal });
+    setCustomerInput(catatan.nama_customer);
     setExistingImageUrl(catatan.gambar_url || null);
     setImagePreview(catatan.gambar_url || null);
     setImageFile(null);
@@ -228,6 +264,7 @@ export default function CatatanPage() {
 
   const resetForm = () => {
     setFormData({ id: '', nama_customer: '', no_telp: '', cabang: '', info_percakapan: '', kategori_id: '', deadline: '' });
+    setCustomerInput('');
     setImageFile(null); setImagePreview(null); setExistingImageUrl(null); setIsEditing(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -278,9 +315,52 @@ export default function CatatanPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Customer <span className="text-red-500">*</span></label>
-                <input type="text" value={formData.nama_customer} onChange={(e) => setFormData({ ...formData, nama_customer: e.target.value })} placeholder="Nama customer..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50" required />
+                <div className="relative">
+                  <input
+                    ref={customerInputRef}
+                    type="text"
+                    value={customerInput}
+                    onChange={(e) => {
+                      setCustomerInput(e.target.value);
+                      setFormData({ ...formData, nama_customer: e.target.value });
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
+                    placeholder="Nama customer..."
+                    className="w-full px-4 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                    required
+                  />
+                  {myCustomers.length > 0 && (
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  )}
+                </div>
+                {/* Dropdown */}
+                {showCustomerDropdown && filteredCustomers.length > 0 && (
+                  <div className="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {filteredCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={() => handleSelectCustomer(c)}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors text-sm"
+                      >
+                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="font-medium text-gray-800">{c.nama}</span>
+                        {c.no_hp && <span className="text-gray-400 text-xs ml-auto">{c.no_hp}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Hint jika belum ada customer */}
+                {myCustomers.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Belum ada customer tersimpan.{' '}
+                    <a href="/customers" className="text-blue-500 underline">Tambah di halaman Customer</a>
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">No. Telp <span className="text-red-500">*</span></label>

@@ -18,6 +18,7 @@ import NotificationsPage from '@/pages/NotificationsPage';
 import ReportsPage from '@/pages/ReportsPage';
 import BarangKosongPage from '@/pages/BarangKosongPage';
 import CatatanKategoriPage from '@/pages/CatatanKategoriPage';
+import CustomerPage from '@/pages/CustomerPage';
 
 // Components
 import LoadingScreen from '@/components/common/LoadingScreen';
@@ -57,6 +58,7 @@ function App() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/barang-kosong" element={<BarangKosongPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/customers" element={<CustomerPage />} />
 
           {/* Admin only routes */}
           <Route

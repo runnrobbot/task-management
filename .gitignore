@@ -32,6 +32,7 @@ supabase-schema.sql
 supabase-migration.sql
 migration-status-barang.sql
 migration-catatan-deadline.sql
+migration-customer.sql
 
 
 # Build files

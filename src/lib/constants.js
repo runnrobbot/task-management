@@ -66,6 +66,7 @@ export const QUERY_KEYS = {
   REMINDERS: 'reminders',
   EMPLOYEE_STATS: 'employee_stats',
   BARANG_KOSONG: 'barang_kosong',
+  CUSTOMERS: 'customers',
 };
 
 // Barang Kosong Status
