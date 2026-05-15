@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { logActivity, AUDIT_ACTIONS } from '@/services/auditLogService';
 import { QUERY_KEYS } from '@/lib/constants';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import Pagination from '@/components/common/Pagination';
@@ -102,11 +103,13 @@ export default function CustomerPage() {
           .update(payload)
           .eq('id', data.id);
         if (error) throw error;
+        await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.UPDATE_CUSTOMER, entity: 'customers', entityId: data.id, detail: `Edit customer: ${data.nama}` });
       } else {
         const { error } = await supabase
           .from('customers')
           .insert([payload]);
         if (error) throw error;
+        await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.CREATE_CUSTOMER, entity: 'customers', detail: `Buat customer: ${data.nama}` });
       }
     },
     onSuccess: () => {
@@ -120,6 +123,7 @@ export default function CustomerPage() {
     mutationFn: async (id) => {
       const { error } = await supabase.from('customers').delete().eq('id', id);
       if (error) throw error;
+      await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.DELETE_CUSTOMER, entity: 'customers', entityId: id, detail: `Hapus customer ID: ${id}` });
     },
     onSuccess: () => queryClient.invalidateQueries([QUERY_KEYS.CUSTOMERS]),
   });

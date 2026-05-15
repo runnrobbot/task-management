@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { logActivity, AUDIT_ACTIONS } from '@/services/auditLogService';
 import { useScope } from '@/lib/useScope';
 import { QUERY_KEYS } from '@/lib/constants';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -355,9 +356,11 @@ export default function CatatanPage() {
       if (data.id) {
         const { error } = await supabase.from('data_catatan').update(payload).eq('id', data.id);
         if (error) throw error;
+        await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.UPDATE_CATATAN, entity: 'data_catatan', entityId: data.id, detail: `Edit catatan: ${data.nama_customer}` });
       } else {
         const { data: inserted, error } = await supabase.from('data_catatan').insert([payload]).select().single();
         if (error) throw error;
+        await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.CREATE_CATATAN, entity: 'data_catatan', entityId: inserted?.id, detail: `Buat catatan: ${data.nama_customer}` });
 
         // Auto-create task jika kategori BUKAN "Barang Masuk"
         if (data.kategori_id) {
@@ -392,6 +395,7 @@ export default function CatatanPage() {
       await deleteImage(imageUrl);
       const { error } = await supabase.from('data_catatan').delete().eq('id', id);
       if (error) throw error;
+      await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.DELETE_CATATAN, entity: 'data_catatan', entityId: id, detail: `Hapus catatan ID: ${id}` });
     },
     onSuccess: () => {
       queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);

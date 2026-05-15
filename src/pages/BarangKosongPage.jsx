@@ -4,8 +4,9 @@ import { motion } from 'framer-motion';
 import {
   Package, Search, X, Filter, FileText, Phone, Building,
   User, Clock, CheckCircle, Loader2, AlertCircle,
-  MessageCircle, MessageSquare, BadgeCheck, ImagePlus
+  MessageCircle, MessageSquare, BadgeCheck, ImagePlus, Eye, Image as ImageIcon
 } from 'lucide-react';
+import CatatanPreviewModal from '@/components/common/CatatanPreviewModal';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useScope } from '@/lib/useScope';
@@ -41,6 +42,7 @@ export default function BarangKosongPage() {
   const [page, setPage]                 = useState(1);
   const [imageModalUrl, setImageModalUrl] = useState(null);
   const [actionModal, setActionModal]   = useState(null);
+  const [previewCatatan, setPreviewCatatan] = useState(null);
 
   // Form state
   const [waNewStatus, setWaNewStatus]     = useState('Proses Pengadaan');
@@ -269,12 +271,32 @@ export default function BarangKosongPage() {
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-400 mb-3 pt-2 border-t border-slate-100">
                         <div className="flex items-center gap-1"><User className="w-3 h-3" /><span>{c.users?.username}</span></div>
-                        <div className="flex items-center gap-1"><Clock className="w-3 h-3" /><span>{new Date(c.waktu).toLocaleDateString('id-ID')}</span></div>
+                        <div className="flex items-center gap-2">
+                          {/* Indikator foto */}
+                          {c.gambar_url ? (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-primary-50 text-primary-500 rounded text-xs font-medium">
+                              <ImageIcon className="w-3 h-3" /> Foto
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 text-slate-300 rounded text-xs">
+                              <ImageIcon className="w-3 h-3" /> No foto
+                            </span>
+                          )}
+                          <div className="flex items-center gap-1"><Clock className="w-3 h-3" /><span>{new Date(c.waktu).toLocaleDateString('id-ID')}</span></div>
+                        </div>
                       </div>
-                      <button onClick={() => openActionModal(c)}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-sm font-medium">
-                        <MessageSquare className="w-3.5 h-3.5" /> Action
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setPreviewCatatan(c)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors text-sm font-medium"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Preview
+                        </button>
+                        <button onClick={() => openActionModal(c)}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors text-sm font-medium">
+                          <MessageSquare className="w-3.5 h-3.5" /> Action
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -386,6 +408,10 @@ export default function BarangKosongPage() {
           </div>
         )}
       </Modal>
+
+      {previewCatatan && (
+        <CatatanPreviewModal catatan={previewCatatan} onClose={() => setPreviewCatatan(null)} />
+      )}
     </div>
   );
 }

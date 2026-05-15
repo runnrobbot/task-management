@@ -40,19 +40,19 @@ export default function Sidebar({ isOpen }) {
 
   return (
     <aside
-      className={`bg-slate-900 transition-all duration-300 flex flex-col h-screen sticky top-0 shadow-xl ${
+      className={`bg-white border-r border-slate-200 transition-all duration-300 flex flex-col h-screen sticky top-0 shadow-sm ${
         isOpen ? 'w-64' : 'w-[72px]'
       }`}
     >
       {/* Logo */}
-      <div className={`shrink-0 flex flex-col items-center gap-2 border-b border-slate-700/60 ${isOpen ? 'p-5' : 'p-4'}`}>
+      <div className={`shrink-0 flex flex-col items-center gap-2 border-b border-slate-200 ${isOpen ? 'p-5' : 'p-4'}`}>
         <img
-          src="/logo-utama.png"
+          src="/logo-sampingan.png"
           alt="Logo"
           className={`object-contain transition-all duration-300 ${isOpen ? 'w-20 h-20' : 'w-9 h-9'}`}
         />
         {isOpen && (
-          <h1 className="font-bold text-base text-primary-300 text-center leading-tight">
+          <h1 className="font-bold text-base text-primary-700 text-center leading-tight">
             Task Management
           </h1>
         )}
@@ -68,13 +68,13 @@ export default function Sidebar({ isOpen }) {
               `group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 ${
                 isActive
                   ? 'bg-primary-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
               }`
             }
           >
             {({ isActive }) => (
               <>
-                <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-700'}`} />
                 {isOpen && (
                   <span className="font-medium text-sm flex-1">{item.label}</span>
                 )}
@@ -89,11 +89,11 @@ export default function Sidebar({ isOpen }) {
         {isAdmin() && (
           <>
             {isOpen ? (
-              <div className="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              <div className="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 Admin
               </div>
             ) : (
-              <div className="my-2 mx-2 border-t border-slate-700/60" />
+              <div className="my-2 mx-2 border-t border-slate-200" />
             )}
             {adminItems.map((item) => (
               <NavLink
@@ -103,13 +103,13 @@ export default function Sidebar({ isOpen }) {
                   `group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 ${
                     isActive
                       ? 'bg-primary-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
                   }`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                    <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-700'}`} />
                     {isOpen && (
                       <span className="font-medium text-sm flex-1">{item.label}</span>
                     )}
@@ -125,18 +125,18 @@ export default function Sidebar({ isOpen }) {
       </nav>
 
       {/* User + Logout */}
-      <div className="shrink-0 p-2.5 border-t border-slate-700/60">
+      <div className="shrink-0 p-2.5 border-t border-slate-200">
         {isOpen && user?.username && (
-          <div className="flex items-center gap-2.5 px-3 py-2 mb-1 rounded-lg bg-slate-800/60">
-            <div className="w-7 h-7 rounded-full bg-primary-600/30 flex items-center justify-center shrink-0">
-              <Users className="w-3.5 h-3.5 text-primary-400" />
+          <div className="flex items-center gap-2.5 px-3 py-2 mb-1 rounded-lg bg-slate-100">
+            <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+              <Users className="w-3.5 h-3.5 text-primary-600" />
             </div>
-            <p className="text-xs text-slate-300 truncate font-medium">{user.username}</p>
+            <p className="text-xs text-slate-700 truncate font-medium">{user.username}</p>
           </div>
         )}
         <button
           onClick={signOut}
-          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-slate-400 hover:bg-red-900/30 hover:text-red-400 transition-all duration-150"
+          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all duration-150"
         >
           <LogOut className="w-5 h-5 shrink-0" />
           {isOpen && <span className="font-medium text-sm">Logout</span>}

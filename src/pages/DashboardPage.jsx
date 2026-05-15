@@ -5,13 +5,14 @@ import {
   LayoutDashboard, CheckSquare, Clock, XCircle, TrendingUp,
   AlertTriangle, User, Calendar, BadgeCheck,
   CheckCircle, FileText, CalendarX, Phone, Building,
-  Users, ChevronDown, MessageSquare,
+  Users, ChevronDown, MessageSquare, Eye,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { QUERY_KEYS } from '@/lib/constants';
 import { useNavigate } from 'react-router-dom';
 import Modal from '@/components/common/Modal';
+import CatatanPreviewModal from '@/components/common/CatatanPreviewModal';
 import { TaskActionModal } from '@/pages/TasksPage';
 import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
@@ -140,6 +141,7 @@ export default function DashboardPage() {
 
   // Task action modal (shared TaskActionModal dari TasksPage)
   const [taskActionModal, setTaskActionModal] = useState({ isOpen: false, task: null });
+  const [previewCatatan, setPreviewCatatan] = useState(null);
 
   const effectiveUserId = isAdmin ? selectedUserId : (user?.id ?? null);
   const showAll = isAdmin && selectedUserId === null;
@@ -490,10 +492,18 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100">
                       <span>{c.users?.username}</span>
-                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle.badge}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}></span>
-                        {c.status_wa || 'Belum Dihubungi'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle.badge}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}></span>
+                          {c.status_wa || 'Belum Dihubungi'}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPreviewCatatan(c); }}
+                          className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-xs font-medium"
+                        >
+                          <Eye className="w-3 h-3" /> Preview
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -525,7 +535,15 @@ export default function DashboardPage() {
                     <p className="text-xs text-slate-500 line-clamp-2 mb-2">{c.info_percakapan}</p>
                     <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100">
                       <span>{c.users?.username}</span>
-                      <span>{new Date(c.waktu).toLocaleDateString('id-ID')}</span>
+                      <div className="flex items-center gap-2">
+                        <span>{new Date(c.waktu).toLocaleDateString('id-ID')}</span>
+                        <button
+                          onClick={() => setPreviewCatatan(c)}
+                          className="flex items-center gap-1 px-2 py-1 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors text-xs font-medium"
+                        >
+                          <Eye className="w-3 h-3" /> Preview
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -604,6 +622,11 @@ export default function DashboardPage() {
           queryClient.invalidateQueries([QUERY_KEYS.REMINDERS]);
         }}
       />
+
+      {/* Catatan Preview Modal */}
+      {previewCatatan && (
+        <CatatanPreviewModal catatan={previewCatatan} onClose={() => setPreviewCatatan(null)} />
+      )}
     </div>
   );
 }

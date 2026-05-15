@@ -8,6 +8,7 @@ import {
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { logActivity, AUDIT_ACTIONS } from '@/services/auditLogService';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import Pagination from '@/components/common/Pagination';
 
@@ -65,9 +66,11 @@ export default function DaftarBarangPage() {
       if (data.id) {
         const { error } = await supabase.from('daftar_barang').update(payload).eq('id', data.id);
         if (error) throw error;
+        await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.UPDATE_BARANG, entity: 'daftar_barang', entityId: data.id, detail: `Edit barang: ${payload.kode_barang} — ${payload.nama_barang}` });
       } else {
         const { error } = await supabase.from('daftar_barang').insert([payload]);
         if (error) throw error;
+        await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.CREATE_BARANG, entity: 'daftar_barang', detail: `Tambah barang: ${payload.kode_barang} — ${payload.nama_barang}` });
       }
     },
     onSuccess: () => {
@@ -82,6 +85,7 @@ export default function DaftarBarangPage() {
     mutationFn: async (id) => {
       const { error } = await supabase.from('daftar_barang').delete().eq('id', id);
       if (error) throw error;
+      await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.DELETE_BARANG, entity: 'daftar_barang', entityId: id, detail: `Hapus barang ID: ${id}` });
     },
     onSuccess: () => {
       queryClient.invalidateQueries([QUERY_KEY]);

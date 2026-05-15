@@ -3,14 +3,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   CheckSquare, Clock, CheckCircle, XCircle, Calendar, User, MessageSquare,
-  BadgeCheck, Search, Filter, Phone, AlertCircle, Loader2, ImagePlus, X as XIcon
+  BadgeCheck, Search, Filter, Phone, AlertCircle, Loader2, ImagePlus, X as XIcon, Eye
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { logActivity, AUDIT_ACTIONS } from '@/services/auditLogService';
 import { useScope } from '@/lib/useScope';
 import { QUERY_KEYS } from '@/lib/constants';
 import Modal from '@/components/common/Modal';
 import Pagination from '@/components/common/Pagination';
+import CatatanPreviewModal from '@/components/common/CatatanPreviewModal';
 
 const PAGE_SIZE = 12;
 const BUCKET = 'catatan-images';
@@ -86,6 +88,7 @@ export function TaskActionModal({ isOpen, task, onClose, onSuccess }) {
       if (commentImageUrl) payload.comment_image_url = commentImageUrl;
       const { error } = await supabase.from('tasks').update(payload).eq('id', id);
       if (error) throw error;
+      await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.UPDATE_TASK, entity: 'tasks', entityId: id, detail: `Update status task #${id} → ${status_task}` });
     },
     onSuccess: () => {
       queryClient.invalidateQueries([QUERY_KEYS.TASKS]);
@@ -237,6 +240,7 @@ export default function TasksPage() {
   const { isAdmin, userId, applyUserFilter } = useScope();
 
   const [actionModal, setActionModal] = useState({ isOpen: false, task: null });
+  const [previewCatatan, setPreviewCatatan] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [kategoriFilter, setKategoriFilter] = useState('');
@@ -382,10 +386,28 @@ export default function TasksPage() {
                       <div className="flex items-center gap-2 text-xs text-slate-500">
                         <Calendar className="w-4 h-4" /><span>{new Date(task.created_at).toLocaleDateString('id-ID')}</span>
                       </div>
-                      <button onClick={() => setActionModal({ isOpen: true, task })}
-                        className="px-4 py-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors font-medium text-sm flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4" />Action
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setPreviewCatatan({
+                            nama_customer: task.nama_customer,
+                            no_telp: task.no_telp,
+                            cabang: task.cabang,
+                            info_percakapan: task.deskripsi,
+                            comment: task.comment,
+                            comment_image_url: task.comment_image_url,
+                            users: task.users,
+                            waktu: task.created_at,
+                            status_wa: task.status === 'Selesai' ? 'Selesai' : task.status === 'Cancel' ? 'Belum Dihubungi' : 'Proses',
+                          })}
+                          className="px-3 py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors font-medium text-sm flex items-center gap-1.5"
+                        >
+                          <Eye className="w-4 h-4" /> Preview
+                        </button>
+                        <button onClick={() => setActionModal({ isOpen: true, task })}
+                          className="px-4 py-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors font-medium text-sm flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4" />Action
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -401,6 +423,10 @@ export default function TasksPage() {
         task={actionModal.task}
         onClose={() => setActionModal({ isOpen: false, task: null })}
       />
+
+      {previewCatatan && (
+        <CatatanPreviewModal catatan={previewCatatan} onClose={() => setPreviewCatatan(null)} />
+      )}
     </div>
   );
 }
