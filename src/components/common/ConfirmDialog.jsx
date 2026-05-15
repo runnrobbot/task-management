@@ -5,7 +5,7 @@ export default function ConfirmDialog({ isOpen, onClose, onConfirm, title, messa
   const typeStyles = {
     danger: 'bg-red-500 hover:bg-red-600',
     warning: 'bg-yellow-500 hover:bg-yellow-600',
-    info: 'bg-blue-500 hover:bg-blue-600',
+    info: 'bg-primary-500 hover:bg-primary-600',
     success: 'bg-green-500 hover:bg-green-600',
   };
 
@@ -34,16 +34,16 @@ export default function ConfirmDialog({ isOpen, onClose, onConfirm, title, messa
             >
               <div className="p-6">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className={`p-3 rounded-full ${type === 'danger' ? 'bg-red-100' : type === 'warning' ? 'bg-yellow-100' : 'bg-blue-100'}`}>
-                    <AlertTriangle className={`w-6 h-6 ${type === 'danger' ? 'text-red-600' : type === 'warning' ? 'text-yellow-600' : 'text-blue-600'}`} />
+                  <div className={`p-3 rounded-full ${type === 'danger' ? 'bg-red-100' : type === 'warning' ? 'bg-yellow-100' : 'bg-primary-100'}`}>
+                    <AlertTriangle className={`w-6 h-6 ${type === 'danger' ? 'text-red-600' : type === 'warning' ? 'text-yellow-600' : 'text-primary-600'}`} />
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+                  <h3 className="text-lg font-bold text-slate-900">{title}</h3>
                 </div>
-                <p className="text-gray-600 mb-6">{message}</p>
+                <p className="text-slate-600 mb-6">{message}</p>
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={onClose}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
                   >
                     {cancelText}
                   </button>

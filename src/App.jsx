@@ -12,13 +12,15 @@ import DashboardPage from '@/pages/DashboardPage';
 import CatatanPage from '@/pages/CatatanPage';
 import TasksPage from '@/pages/TasksPage';
 import UsersPage from '@/pages/UsersPage';
-import EmployeesPage from '@/pages/EmployeesPage';
 import DivisionsPage from '@/pages/DivisionsPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import ReportsPage from '@/pages/ReportsPage';
 import BarangKosongPage from '@/pages/BarangKosongPage';
 import CatatanKategoriPage from '@/pages/CatatanKategoriPage';
 import CustomerPage from '@/pages/CustomerPage';
+import DaftarBarangPage from '@/pages/DaftarBarangPage';
+import ProfilePage from '@/pages/ProfilePage';
+import AuditLogsPage from '@/pages/AuditLogsPage';
 
 // Components
 import LoadingScreen from '@/components/common/LoadingScreen';
@@ -59,6 +61,7 @@ function App() {
           <Route path="/barang-kosong" element={<BarangKosongPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/customers" element={<CustomerPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
 
           {/* Admin only routes */}
           <Route
@@ -66,14 +69,6 @@ function App() {
             element={
               <AdminRoute>
                 <UsersPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/employees"
-            element={
-              <AdminRoute>
-                <EmployeesPage />
               </AdminRoute>
             }
           />
@@ -90,6 +85,22 @@ function App() {
             element={
               <AdminRoute>
                 <CatatanKategoriPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/daftar-barang"
+            element={
+              <AdminRoute>
+                <DaftarBarangPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/audit-logs"
+            element={
+              <AdminRoute>
+                <AuditLogsPage />
               </AdminRoute>
             }
           />

@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
+import { logActivity, AUDIT_ACTIONS } from '@/services/auditLogService';
+import { registerSession, startSessionWatcher, stopSessionWatcher, clearSession } from '@/services/sessionService';
+
+const fetchProfile = async (userId) => {
+  const { data } = await supabase
+    .from('users')
+    .select('*, divisions(id, name)')
+    .eq('id', userId)
+    .maybeSingle();
+  return data || null;
+};
 
 export const useAuthStore = create(
   persist(
@@ -9,30 +20,43 @@ export const useAuthStore = create(
       session: null,
       isAuthenticated: false,
       isLoading: true,
+      sessionKickedOut: false,
 
-      // Initialize auth state from Supabase
       initialize: async () => {
         try {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
+          const { data: { session } } = await supabase.auth.getSession();
 
           if (session) {
-            // Fetch user profile from database
-            const { data: profile } = await supabase
-              .from('users')
-              .select('*, divisions(id, name)')
-              .eq('id', session.user.id)
-              .single();
+            const profile = await fetchProfile(session.user.id);
+            set({ session, user: profile, isAuthenticated: !!profile, isLoading: false });
 
-            set({
-              session,
-              user: profile,
-              isAuthenticated: true,
-              isLoading: false,
-            });
+            const localToken = sessionStorage.getItem('active_session_token');
+            if (localToken && profile) {
+              startSessionWatcher(profile.id, () => get().forceLogout('session_kicked'));
+            }
           } else {
             set({ isLoading: false });
+          }
+
+          if (!get()._authListenerRegistered) {
+            set({ _authListenerRegistered: true });
+            supabase.auth.onAuthStateChange(async (event, newSession) => {
+              if (event === 'SIGNED_OUT') {
+                set({ user: null, session: null, isAuthenticated: false, isLoading: false });
+                return;
+              }
+              if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && newSession) {
+                const currentUser = get().user;
+                if (currentUser && currentUser.id === newSession.user.id) {
+                  set({ session: newSession });
+                  return;
+                }
+                const profile = await fetchProfile(newSession.user.id);
+                if (profile) {
+                  set({ session: newSession, user: profile, isAuthenticated: true, isLoading: false });
+                }
+              }
+            });
           }
         } catch (error) {
           console.error('Auth initialization error:', error);
@@ -40,78 +64,67 @@ export const useAuthStore = create(
         }
       },
 
-      // Sign in
       signIn: async (username, password) => {
         try {
-          // Always use username@app.local format for auth
-          const email = `${username}@glory8.com`;
+          const email = `${username}@glory.com`;
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw new Error('Username atau password salah');
 
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
+          const profile = await fetchProfile(data.user.id);
+          if (!profile) throw new Error('User profile tidak ditemukan.');
 
-          if (error) {
-            console.error('Auth error:', error);
-            throw new Error('Username atau password salah');
-          }
+          set({ session: data.session, user: profile, isAuthenticated: true, sessionKickedOut: false });
 
-          // Get user profile from database
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('*, divisions(id, name)')
-            .eq('id', data.user.id)
-            .single();
+          await registerSession(profile.id);
+          startSessionWatcher(profile.id, () => get().forceLogout('session_kicked'));
 
-          if (userError || !userData) {
-            console.error('User profile error:', userError);
-            throw new Error('User profile tidak ditemukan. Pastikan user sudah diinsert ke table users.');
-          }
-
-          set({
-            session: data.session,
-            user: userData,
-            isAuthenticated: true,
+          await logActivity({
+            userId: profile.id,
+            username: profile.username,
+            action: AUDIT_ACTIONS.LOGIN,
+            detail: 'Login berhasil',
           });
 
           return { success: true };
         } catch (error) {
-          console.error('Sign in error:', error);
           return { success: false, error: error.message };
         }
       },
 
-      // Sign out
       signOut: async () => {
         try {
+          const { user } = get();
+          if (user) {
+            await logActivity({
+              userId: user.id,
+              username: user.username,
+              action: AUDIT_ACTIONS.LOGOUT,
+              detail: 'Logout manual',
+            });
+            await clearSession(user.id);
+          }
+          stopSessionWatcher();
           await supabase.auth.signOut();
-          set({
-            user: null,
-            session: null,
-            isAuthenticated: false,
-          });
+          set({ user: null, session: null, isAuthenticated: false, sessionKickedOut: false });
         } catch (error) {
           console.error('Sign out error:', error);
         }
       },
 
-      // Update user profile
-      updateUser: (updates) => {
-        const currentUser = get().user;
-        set({ user: { ...currentUser, ...updates } });
+      forceLogout: async (reason = 'session_kicked') => {
+        stopSessionWatcher();
+        sessionStorage.removeItem('active_session_token');
+        await supabase.auth.signOut();
+        set({
+          user: null, session: null, isAuthenticated: false,
+          sessionKickedOut: reason === 'session_kicked',
+        });
       },
 
-      // Check if user is admin
-      isAdmin: () => {
-        const user = get().user;
-        return user?.role === 'admin';
-      },
-
-      // Get user division
-      getUserDivision: () => {
-        const user = get().user;
-        return user?.divisions?.name || 'Umum';
-      },
+      clearKickedOutFlag: () => set({ sessionKickedOut: false }),
+      updateUser: (updates) => set({ user: { ...get().user, ...updates } }),
+      isAdmin: () => get().user?.role === 'admin',
+      getUserDivision: () => get().user?.divisions?.name || 'Umum',
     }),
     {
       name: 'auth-storage',

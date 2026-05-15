@@ -25,21 +25,21 @@ export default function Pagination({ page, totalPages, onPageChange }) {
 
   return (
     <div className="flex items-center justify-between mt-6">
-      <p className="text-sm text-gray-500">
-        Halaman <span className="font-semibold text-gray-700">{page}</span> dari{' '}
-        <span className="font-semibold text-gray-700">{totalPages}</span>
+      <p className="text-sm text-slate-500">
+        Halaman <span className="font-semibold text-slate-700">{page}</span> dari{' '}
+        <span className="font-semibold text-slate-700">{totalPages}</span>
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
-          className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         {withEllipsis.map((p, i) =>
           p === '...' ? (
-            <span key={`e-${i}`} className="px-2 text-gray-400 text-sm">…</span>
+            <span key={`e-${i}`} className="px-2 text-slate-400 text-sm">…</span>
           ) : (
             <button
               key={p}
@@ -47,7 +47,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
               className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
                 p === page
                   ? 'bg-primary-600 text-white'
-                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
               {p}
@@ -57,7 +57,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages}
-          className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>

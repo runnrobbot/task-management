@@ -1,86 +1,158 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { LogIn } from 'lucide-react';
+import { Eye, EyeOff, CheckSquare } from 'lucide-react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuthStore();
+  const { signIn, sessionKickedOut, clearKickedOutFlag } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (sessionKickedOut) {
+      setError('Sesi Anda berakhir karena akun ini login di perangkat lain.');
+      clearKickedOutFlag();
+    }
+  }, [sessionKickedOut, clearKickedOutFlag]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     const result = await signIn(username, password);
-
     if (result.success) {
       navigate('/dashboard');
     } else {
       setError(result.error || 'Login gagal');
     }
-
     setLoading(false);
   };
 
   return (
-    <div className="w-full max-w-md">
-      <div className="bg-white rounded-2xl shadow-xl p-8">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
-            <LogIn className="w-8 h-8 text-primary-600" />
+    <div className="login-wrapper">
+      {/* Background decorative elements */}
+      <div className="login-bg-blob login-bg-blob-1" />
+      <div className="login-bg-blob login-bg-blob-2" />
+      <div className="login-bg-blob login-bg-blob-3" />
+
+      <div className="login-card">
+        {/* Left panel — branding */}
+        <div className="login-brand-panel">
+          <div className="login-brand-inner">
+            <div className="login-logo">
+              <CheckSquare className="login-logo-icon" strokeWidth={1.5} />
+            </div>
+            <h1 className="login-app-name">Glory8 Task</h1>
+            <p className="login-app-tagline">
+              Sistem manajemen tugas Glory8
+            </p>
+
+            <div className="login-features">
+              {[
+                'Dashboard per akun',
+                'Kontrol penuh admin',
+                'Notifikasi real-time',
+                'Laporan lengkap',
+              ].map((f) => (
+                <div key={f} className="login-feature-item">
+                  <span className="login-feature-dot" />
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
-          <p className="text-gray-600 mt-2">Login ke akun Anda</p>
+
+          {/* Decorative grid */}
+          <div className="login-brand-grid" aria-hidden="true">
+            {Array.from({ length: 30 }).map((_, i) => (
+              <div key={i} className="login-brand-grid-dot" />
+            ))}
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Masukkan username"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Masukkan password"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
+        {/* Right panel — form */}
+        <div className="login-form-panel">
+          <div className="login-form-inner">
+            <div className="login-form-header">
+              <h2 className="login-form-title">Selamat datang</h2>
+              <p className="login-form-subtitle">Masuk ke akun Anda untuk melanjutkan</p>
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-          >
-            {loading ? 'Loading...' : 'Login'}
-          </button>
-        </form>
+            <form onSubmit={handleSubmit} className="login-form">
+              {/* Username */}
+              <div className="login-field">
+                <label className="login-label">Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="login-input"
+                  placeholder="Masukkan username"
+                  required
+                  autoFocus
+                  autoComplete="username"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="login-field">
+                <label className="login-label">Password</label>
+                <div className="login-password-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="login-input login-input-password"
+                    placeholder="Masukkan password"
+                    required
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="login-eye-btn"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="login-error" role="alert">
+                  <span className="login-error-dot" />
+                  {error}
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="login-submit-btn"
+              >
+                {loading ? (
+                  <span className="login-btn-loading">
+                    <span className="login-spinner" />
+                    Memproses...
+                  </span>
+                ) : (
+                  'Masuk'
+                )}
+              </button>
+            </form>
+
+            <p className="login-footer-note">
+              Glory8 Task Management &copy; {new Date().getFullYear()}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

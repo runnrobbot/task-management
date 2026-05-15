@@ -4,15 +4,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellOff, Check, CheckCheck, Trash2, RefreshCw, Package, ClipboardList, Info } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { useScope } from '@/lib/useScope';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 const TYPE_CONFIG = {
   barang_status: { icon: <Package className="w-4 h-4" />, color: 'text-orange-500', bg: 'bg-orange-50' },
   create:        { icon: <ClipboardList className="w-4 h-4" />, color: 'text-green-500', bg: 'bg-green-50' },
-  update:        { icon: <RefreshCw className="w-4 h-4" />, color: 'text-blue-500', bg: 'bg-blue-50' },
+  update:        { icon: <RefreshCw className="w-4 h-4" />, color: 'text-primary-500', bg: 'bg-primary-50' },
   delete:        { icon: <Trash2 className="w-4 h-4" />, color: 'text-red-500', bg: 'bg-red-50' },
-  task:          { icon: <ClipboardList className="w-4 h-4" />, color: 'text-purple-500', bg: 'bg-purple-50' },
-  default:       { icon: <Info className="w-4 h-4" />, color: 'text-gray-500', bg: 'bg-gray-50' },
+  task:          { icon: <ClipboardList className="w-4 h-4" />, color: 'text-primary-500', bg: 'bg-primary-50' },
+  default:       { icon: <Info className="w-4 h-4" />, color: 'text-slate-500', bg: 'bg-slate-50' },
 };
 
 function getTypeConfig(type) {
@@ -29,6 +30,7 @@ function timeAgo(dateStr) {
 
 export default function NotificationsPage() {
   const { user } = useAuthStore();
+  const { isAdmin, userId } = useScope();
   const queryClient = useQueryClient();
   const [filterRead, setFilterRead]           = useState('all'); // all | unread | read
   const [confirmClearAll, setConfirmClearAll] = useState(false);
@@ -36,13 +38,16 @@ export default function NotificationsPage() {
 
   // ── Query notifikasi ─────────────────────────────────────────
   const { data: notifications = [], isLoading, refetch } = useQuery({
-    queryKey: ['notifications', filterRead],
+    queryKey: ['notifications', filterRead, isAdmin, userId],
     queryFn: async () => {
       let q = supabase
         .from('notifications')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
+
+      // User biasa: hanya notif miliknya. Admin: semua.
+      if (!isAdmin) q = q.eq('user_id', userId);
 
       if (filterRead === 'unread') q = q.eq('is_read', false);
       if (filterRead === 'read')   q = q.eq('is_read', true);
@@ -78,7 +83,10 @@ export default function NotificationsPage() {
 
   const markAllReadMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('is_read', false);
+      let q = supabase.from('notifications').update({ is_read: true }).eq('is_read', false);
+      // User biasa: cuma mark-read milikinya sendiri
+      if (!isAdmin) q = q.eq('user_id', userId);
+      const { error } = await q;
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries(['notifications']),
@@ -97,9 +105,13 @@ export default function NotificationsPage() {
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      // If filter is 'read', delete only read ones; otherwise delete all visible
+      // If filter is 'read', delete only read ones; otherwise delete all visible.
+      // RLS sudah membatasi DELETE ke milik user (kecuali admin),
+      // tapi kita filter eksplisit juga untuk konsistensi UX.
       if (filterRead === 'read') {
-        const { error } = await supabase.from('notifications').delete().eq('is_read', true);
+        let q = supabase.from('notifications').delete().eq('is_read', true);
+        if (!isAdmin) q = q.eq('user_id', userId);
+        const { error } = await q;
         if (error) throw error;
       } else {
         const ids = notifications.map(n => n.id);
@@ -130,8 +142,8 @@ export default function NotificationsPage() {
               )}
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Notifikasi</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-3xl font-bold text-slate-900">Notifikasi</h1>
+              <p className="text-sm text-slate-500">
                 {unreadCount > 0 ? `${unreadCount} belum dibaca` : 'Semua sudah dibaca'}
               </p>
             </div>
@@ -140,7 +152,7 @@ export default function NotificationsPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => refetch()}
-              className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
               title="Refresh"
             >
               <RefreshCw className="w-4 h-4" />
@@ -160,7 +172,7 @@ export default function NotificationsPage() {
 
         {/* ── Filter tabs ── */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
             {[
               { value: 'all',    label: 'Semua' },
               { value: 'unread', label: 'Belum Dibaca' },
@@ -172,7 +184,7 @@ export default function NotificationsPage() {
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   filterRead === tab.value
                     ? 'bg-white text-primary-700 shadow'
-                    : 'text-gray-600 hover:text-gray-900'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {tab.label}
@@ -194,12 +206,12 @@ export default function NotificationsPage() {
         {isLoading ? (
           <div className="text-center py-16">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-gray-500">Memuat notifikasi...</p>
+            <p className="mt-4 text-slate-500">Memuat notifikasi...</p>
           </div>
         ) : notifications.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl shadow">
-            <BellOff className="w-14 h-14 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">
+            <BellOff className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500 font-medium">
               {filterRead === 'unread' ? 'Tidak ada notifikasi yang belum dibaca' : 'Tidak ada notifikasi'}
             </p>
           </div>
@@ -217,8 +229,8 @@ export default function NotificationsPage() {
                     transition={{ delay: i * 0.03 }}
                     className={`flex items-start gap-4 p-4 rounded-xl shadow-sm border transition-all ${
                       notif.is_read
-                        ? 'bg-white border-gray-100'
-                        : 'bg-blue-50 border-blue-100'
+                        ? 'bg-white border-slate-100'
+                        : 'bg-primary-50 border-primary-100'
                     }`}
                   >
                     {/* Icon type */}
@@ -228,10 +240,10 @@ export default function NotificationsPage() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${notif.is_read ? 'text-gray-700' : 'text-gray-900 font-medium'}`}>
+                      <p className={`text-sm ${notif.is_read ? 'text-slate-700' : 'text-slate-900 font-medium'}`}>
                         {notif.message}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">{timeAgo(notif.created_at)}</p>
+                      <p className="text-xs text-slate-400 mt-1">{timeAgo(notif.created_at)}</p>
                     </div>
 
                     {/* Actions */}
@@ -241,7 +253,7 @@ export default function NotificationsPage() {
                           onClick={() => markReadMutation.mutate(notif.id)}
                           disabled={markReadMutation.isLoading}
                           title="Tandai sudah dibaca"
-                          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                          className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
                         >
                           <Check className="w-4 h-4" />
                         </button>
@@ -250,7 +262,7 @@ export default function NotificationsPage() {
                         onClick={() => setDeletingId(notif.id)}
                         disabled={deleteNotifMutation.isLoading}
                         title="Hapus notifikasi"
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

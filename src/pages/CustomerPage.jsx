@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, UserPlus, Phone, MapPin, StickyNote, Edit2, Trash2,
-  Save, X, Search, User, Clock, ChevronDown,
+  Save, X, Search, User, Clock, ChevronDown, Star,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -13,7 +13,7 @@ import Pagination from '@/components/common/Pagination';
 
 const PAGE_SIZE = 12;
 
-const emptyForm = { id: '', nama: '', no_hp: '', alamat: '', catatan: '' };
+const emptyForm = { id: '', nama: '', no_hp: '', alamat: '', catatan: '', is_prioritas: false };
 
 export default function CustomerPage() {
   const { user } = useAuthStore();
@@ -26,6 +26,7 @@ export default function CustomerPage() {
   const [formData, setFormData]     = useState(emptyForm);
   const [isEditing, setIsEditing]   = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null });
+  const [prioritasOnly, setPrioritasOnly] = useState(false);
 
   // Admin: filter by user
   const [adminUserFilter, setAdminUserFilter] = useState('');
@@ -46,7 +47,7 @@ export default function CustomerPage() {
 
   // ── Fetch customers ───────────────────────────────
   const { data: result = { data: [], count: 0, totalPages: 1 }, isLoading } = useQuery({
-    queryKey: [QUERY_KEYS.CUSTOMERS, { search, page, adminUserFilter }],
+    queryKey: [QUERY_KEYS.CUSTOMERS, { search, page, prioritasOnly, adminUserFilter }],
     queryFn: async () => {
       let query = supabase
         .from('customers')
@@ -63,6 +64,9 @@ export default function CustomerPage() {
 
       if (search) {
         query = query.or(`nama.ilike.%${search}%,no_hp.ilike.%${search}%,alamat.ilike.%${search}%`);
+      }
+      if (prioritasOnly) {
+        query = query.eq('is_prioritas', true);
       }
 
       const from = (page - 1) * PAGE_SIZE;
@@ -84,11 +88,12 @@ export default function CustomerPage() {
   const saveMutation = useMutation({
     mutationFn: async (data) => {
       const payload = {
-        nama:    data.nama.trim(),
-        no_hp:   data.no_hp?.trim()   || null,
-        alamat:  data.alamat?.trim()  || null,
-        catatan: data.catatan?.trim() || null,
-        user_id: user.id,
+        nama:         data.nama.trim(),
+        no_hp:        data.no_hp?.trim()   || null,
+        alamat:       data.alamat?.trim()  || null,
+        catatan:      data.catatan?.trim() || null,
+        user_id:      user.id,
+        is_prioritas: data.is_prioritas || false,
       };
 
       if (data.id) {
@@ -127,11 +132,12 @@ export default function CustomerPage() {
 
   const handleEdit = (c) => {
     setFormData({
-      id:      c.id,
-      nama:    c.nama,
-      no_hp:   c.no_hp    || '',
-      alamat:  c.alamat   || '',
-      catatan: c.catatan  || '',
+      id:           c.id,
+      nama:         c.nama,
+      no_hp:        c.no_hp    || '',
+      alamat:       c.alamat   || '',
+      catatan:      c.catatan  || '',
+      is_prioritas: c.is_prioritas || false,
     });
     setIsEditing(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -156,8 +162,8 @@ export default function CustomerPage() {
         <div className="flex items-center gap-3 mb-6">
           <Users className="w-8 h-8 text-emerald-600" />
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Customer Saya</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h1 className="text-3xl font-bold text-slate-900">Customer Saya</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
               {isAdmin
                 ? 'Daftar pelanggan semua pengguna (mode Admin)'
                 : 'Daftar pelanggan pribadi Anda – hanya Anda yang bisa melihatnya'}
@@ -174,7 +180,7 @@ export default function CustomerPage() {
         >
           <div className="flex items-center gap-2 mb-6">
             <UserPlus className="w-5 h-5 text-emerald-600" />
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold text-slate-900">
               {isEditing ? 'Edit Pelanggan' : 'Tambah Pelanggan Baru'}
             </h2>
           </div>
@@ -182,7 +188,7 @@ export default function CustomerPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Nama */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Nama Pelanggan <span className="text-red-500">*</span>
               </label>
               <input
@@ -190,7 +196,7 @@ export default function CustomerPage() {
                 value={formData.nama}
                 onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
                 placeholder="Nama lengkap pelanggan..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-gray-50"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50"
                 required
               />
             </div>
@@ -198,10 +204,10 @@ export default function CustomerPage() {
             {/* No HP & Alamat */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
                   <span className="flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5" /> No. HP
-                    <span className="text-gray-400 font-normal text-xs ml-1">(opsional)</span>
+                    <span className="text-slate-400 font-normal text-xs ml-1">(opsional)</span>
                   </span>
                 </label>
                 <input
@@ -209,14 +215,14 @@ export default function CustomerPage() {
                   value={formData.no_hp}
                   onChange={(e) => setFormData({ ...formData, no_hp: e.target.value })}
                   placeholder="0812..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-gray-50"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
                   <span className="flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5" /> Alamat
-                    <span className="text-gray-400 font-normal text-xs ml-1">(opsional)</span>
+                    <span className="text-slate-400 font-normal text-xs ml-1">(opsional)</span>
                   </span>
                 </label>
                 <input
@@ -224,17 +230,17 @@ export default function CustomerPage() {
                   value={formData.alamat}
                   onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
                   placeholder="Alamat pelanggan..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-gray-50"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50"
                 />
               </div>
             </div>
 
             {/* Catatan */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
                 <span className="flex items-center gap-1">
                   <StickyNote className="w-3.5 h-3.5" /> Catatan
-                  <span className="text-gray-400 font-normal text-xs ml-1">(opsional)</span>
+                  <span className="text-slate-400 font-normal text-xs ml-1">(opsional)</span>
                 </span>
               </label>
               <textarea
@@ -242,8 +248,25 @@ export default function CustomerPage() {
                 onChange={(e) => setFormData({ ...formData, catatan: e.target.value })}
                 placeholder="Catatan tambahan tentang pelanggan ini..."
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-gray-50 resize-none"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-slate-50 resize-none"
               />
+            </div>
+
+            {/* Customer Prioritas toggle */}
+            <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <label className="flex items-center gap-2 text-sm font-semibold text-yellow-800 cursor-pointer" htmlFor="is_prioritas_toggle">
+                <Star className="w-4 h-4 text-yellow-500 fill-yellow-400" />
+                Customer Prioritas
+                <span className="text-xs font-normal text-yellow-600">(ditampilkan paling atas)</span>
+              </label>
+              <button
+                id="is_prioritas_toggle"
+                type="button"
+                onClick={() => setFormData({ ...formData, is_prioritas: !formData.is_prioritas })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.is_prioritas ? 'bg-yellow-400' : 'bg-slate-300'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${formData.is_prioritas ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
 
             {/* Info: ditambahkan oleh siapa */}
@@ -266,7 +289,7 @@ export default function CustomerPage() {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center gap-2"
+                  className="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium flex items-center gap-2"
                 >
                   <X className="w-4 h-4" /> Batal
                 </button>
@@ -292,24 +315,24 @@ export default function CustomerPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Cari nama, no hp, alamat..."
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
 
             {/* Admin: filter by user */}
             {isAdmin && (
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <select
                   value={adminUserFilter}
                   onChange={(e) => { setAdminUserFilter(e.target.value); setPage(1); }}
-                  className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent appearance-none"
+                  className="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent appearance-none"
                 >
                   <option value="">Semua Pengguna</option>
                   {allUsers.map((u) => (
@@ -318,26 +341,37 @@ export default function CustomerPage() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             )}
           </div>
 
-          {(search || adminUserFilter) && (
+          {/* Prioritas filter */}
+          <div className="flex items-center gap-2 mt-3">
             <button
-              onClick={() => { handleSearchChange(''); setAdminUserFilter(''); }}
-              className="mt-3 text-sm text-red-500 hover:text-red-700 underline"
+              type="button"
+              onClick={() => { setPrioritasOnly(!prioritasOnly); setPage(1); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${prioritasOnly ? 'bg-yellow-400 border-yellow-400 text-white' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50'}`}
             >
-              Reset Filter
+              <Star className={`w-3.5 h-3.5 ${prioritasOnly ? 'fill-white' : 'fill-yellow-300'}`} />
+              Prioritas
             </button>
-          )}
+            {(search || adminUserFilter || prioritasOnly) && (
+              <button
+                onClick={() => { handleSearchChange(''); setAdminUserFilter(''); setPrioritasOnly(false); }}
+                className="text-sm text-red-500 hover:text-red-700 underline"
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Count ── */}
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-900">
+          <h3 className="text-xl font-bold text-slate-900">
             Daftar Pelanggan
-            <span className="ml-2 text-sm font-normal text-gray-400">({result.count} data)</span>
+            <span className="ml-2 text-sm font-normal text-slate-400">({result.count} data)</span>
           </h3>
         </div>
 
@@ -345,13 +379,13 @@ export default function CustomerPage() {
         {isLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto" />
-            <p className="mt-4 text-gray-600">Memuat data pelanggan...</p>
+            <p className="mt-4 text-slate-600">Memuat data pelanggan...</p>
           </div>
         ) : result.data.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl shadow">
-            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 font-medium">Belum ada pelanggan.</p>
-            <p className="text-gray-400 text-sm mt-1">Tambahkan pelanggan pertama Anda di atas.</p>
+            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-600 font-medium">Belum ada pelanggan.</p>
+            <p className="text-slate-400 text-sm mt-1">Tambahkan pelanggan pertama Anda di atas.</p>
           </div>
         ) : (
           <>
@@ -364,17 +398,20 @@ export default function CustomerPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.3, delay: index * 0.04 }}
-                    className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border-l-4 border-l-emerald-500 overflow-hidden"
+                    className={`bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border-l-4 overflow-hidden ${c.is_prioritas ? 'border-l-yellow-400' : 'border-l-emerald-500'}`}
                   >
                     <div className="p-5">
                       {/* Nama + badge owner (admin) */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <User className="w-5 h-5 text-emerald-600" />
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${c.is_prioritas ? 'bg-yellow-100' : 'bg-emerald-100'}`}>
+                            {c.is_prioritas ? <Star className="w-5 h-5 text-yellow-500 fill-yellow-300" /> : <User className="w-5 h-5 text-emerald-600" />}
                           </div>
                           <div>
-                            <h3 className="font-bold text-gray-900 text-base leading-tight">{c.nama}</h3>
+                            <div className="flex items-center gap-1.5 leading-tight">
+                              <h3 className="font-bold text-slate-900 text-base">{c.nama}</h3>
+                              {c.is_prioritas && <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-semibold">⭐ Prioritas</span>}
+                            </div>
                             {isAdmin && c.users?.username && (
                               <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full">
                                 {c.users.username}
@@ -387,40 +424,40 @@ export default function CustomerPage() {
                       {/* Detail */}
                       <div className="space-y-1.5 mb-4">
                         {c.no_hp ? (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span>{c.no_hp}</span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2 text-sm text-gray-400 italic">
+                          <div className="flex items-center gap-2 text-sm text-slate-400 italic">
                             <Phone className="w-3.5 h-3.5 shrink-0" />
                             <span>No HP tidak diisi</span>
                           </div>
                         )}
 
                         {c.alamat ? (
-                          <div className="flex items-start gap-2 text-sm text-gray-600">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                          <div className="flex items-start gap-2 text-sm text-slate-600">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                             <span className="line-clamp-2">{c.alamat}</span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2 text-sm text-gray-400 italic">
+                          <div className="flex items-center gap-2 text-sm text-slate-400 italic">
                             <MapPin className="w-3.5 h-3.5 shrink-0" />
                             <span>Alamat tidak diisi</span>
                           </div>
                         )}
 
                         {c.catatan && (
-                          <div className="flex items-start gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg p-2.5 mt-2">
-                            <StickyNote className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                          <div className="flex items-start gap-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-2.5 mt-2">
+                            <StickyNote className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                             <span className="line-clamp-3 whitespace-pre-wrap">{c.catatan}</span>
                           </div>
                         )}
                       </div>
 
                       {/* Footer */}
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <div className="flex items-center gap-1 text-xs text-gray-400">
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-1 text-xs text-slate-400">
                           <Clock className="w-3 h-3" />
                           <span>{new Date(c.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                         </div>
@@ -430,7 +467,7 @@ export default function CustomerPage() {
                             <>
                               <button
                                 onClick={() => handleEdit(c)}
-                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                                className="p-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors"
                                 title="Edit"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
