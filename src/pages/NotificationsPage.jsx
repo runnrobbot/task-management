@@ -65,7 +65,7 @@ export default function NotificationsPage() {
     const channel = supabase
       .channel('notifications-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        queryClient.invalidateQueries(['notifications']);
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
       })
       .subscribe();
 
@@ -78,7 +78,7 @@ export default function NotificationsPage() {
       const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries(['notifications']),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const markAllReadMutation = useMutation({
@@ -89,7 +89,7 @@ export default function NotificationsPage() {
       const { error } = await q;
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries(['notifications']),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const deleteNotifMutation = useMutation({
@@ -98,7 +98,7 @@ export default function NotificationsPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['notifications']);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
       setDeletingId(null);
     },
   });
@@ -121,7 +121,7 @@ export default function NotificationsPage() {
         }
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries(['notifications']); setConfirmClearAll(false); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['notifications'] }); setConfirmClearAll(false); },
   });
 
   const unreadCount = notifications.filter(n => !n.is_read).length;

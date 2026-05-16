@@ -185,7 +185,7 @@ function KodeBarangCombobox({ value, onChange, daftarBarang, required }) {
 
 export default function CatatanPage() {
   const { user } = useAuthStore();
-  const { isAdmin, userId, applyUserFilter } = useScope();
+  const { isAdmin, isDivisionShared, userId, divisionId, applyUserFilter, applySharedFilter } = useScope();
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
 
@@ -193,6 +193,21 @@ export default function CatatanPage() {
   const [search, setSearch] = useState('');
   const [kategoriFilter, setKategoriFilter] = useState('');
   const [page, setPage] = useState(1);
+
+  // Fetch sibling user IDs (sesama divisi) — hanya jika divisi aktif sharing
+  const { data: siblingUserIds = [] } = useQuery({
+    queryKey: ['reseller_sibling_ids', divisionId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('division_id', divisionId);
+      if (error) throw error;
+      return (data || []).map((u) => u.id);
+    },
+    enabled: !!user && isDivisionShared && !!divisionId,
+    staleTime: 5 * 60 * 1000, // cache 5 menit
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -290,14 +305,19 @@ export default function CatatanPage() {
 
   // Fetch catatan
   const { data: result = { data: [], count: 0, totalPages: 1 }, isLoading } = useQuery({
-    queryKey: [QUERY_KEYS.CATATAN, { search, kategoriFilter, page, isAdmin, userId }],
+    queryKey: [QUERY_KEYS.CATATAN, { search, kategoriFilter, page, isAdmin, userId, siblingUserIds }],
     queryFn: async () => {
       let query = supabase
         .from('data_catatan')
         .select('*, users:user_id(username), catatan_kategori:kategori_id(id, nama)', { count: 'exact' })
         .order('waktu', { ascending: false });
 
-      query = applyUserFilter(query);
+      // Divisi dengan sharing aktif: tampilkan data sesama anggota divisi
+      if (isDivisionShared) {
+        query = applySharedFilter(query, siblingUserIds);
+      } else {
+        query = applyUserFilter(query);
+      }
 
       if (search) query = query.or(`nama_customer.ilike.%${search}%,no_telp.ilike.%${search}%,info_percakapan.ilike.%${search}%`);
       if (kategoriFilter) query = query.eq('kategori_id', kategoriFilter);
@@ -382,9 +402,9 @@ export default function CatatanPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
-      queryClient.invalidateQueries([QUERY_KEYS.TASKS]);
-      queryClient.invalidateQueries([QUERY_KEYS.STATS]);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CATATAN] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.TASKS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.STATS] });
       resetForm();
     },
   });
@@ -392,18 +412,24 @@ export default function CatatanPage() {
   // Delete catatan mutation — invalidate semua query terkait agar data hilang di semua page
   const deleteMutation = useMutation({
     mutationFn: async ({ id, imageUrl }) => {
+      // Hanya admin yang boleh hapus catatan
+      if (user?.role !== 'admin' && user?.role !== 'superadmin') {
+        throw new Error('Hanya Administrator yang dapat menghapus catatan.');
+      }
       await deleteImage(imageUrl);
       const { error } = await supabase.from('data_catatan').delete().eq('id', id);
       if (error) throw error;
       await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.DELETE_CATATAN, entity: 'data_catatan', entityId: id, detail: `Hapus catatan ID: ${id}` });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
-      queryClient.invalidateQueries(['catatan_barang_kosong']);
-      queryClient.invalidateQueries(['catatan_barang_dashboard']);
-      queryClient.invalidateQueries(['catatan_overdue']);
-      queryClient.invalidateQueries([QUERY_KEYS.STATS]);
-      queryClient.invalidateQueries([QUERY_KEYS.TASKS]);
+      // Invalidate semua query catatan (prefix match) — mencakup semua page
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CATATAN] });
+      queryClient.invalidateQueries({ queryKey: ['catatan_barang_kosong'] });
+      queryClient.invalidateQueries({ queryKey: ['catatan_barang_dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['catatan_overdue'] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.TASKS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.REMINDERS] });
     },
   });
 
@@ -637,10 +663,13 @@ export default function CatatanPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input type="text" placeholder="Cari nama, telp, info..." value={search} onChange={(e) => handleSearchChange(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
             </div>
-            <select value={kategoriFilter} onChange={(e) => handleKategoriFilter(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-              <option value="">Semua Kategori</option>
-              {kategoris.map((k) => (<option key={k.id} value={k.id}>{k.nama}</option>))}
-            </select>
+            <div className="relative">
+              <select value={kategoriFilter} onChange={(e) => handleKategoriFilter(e.target.value)} className="w-full pl-4 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white cursor-pointer text-slate-700 hover:border-primary-400 transition-colors">
+                <option value="">Semua Kategori</option>
+                {kategoris.map((k) => (<option key={k.id} value={k.id}>{k.nama}</option>))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
           </div>
           {hasActiveFilter && (
             <button onClick={() => { handleSearchChange(''); handleKategoriFilter(''); }} className="mt-3 text-sm text-red-500 hover:text-red-700 underline">
@@ -756,16 +785,17 @@ export default function CatatanPage() {
                           <span>{new Date(catatan.waktu).toLocaleString('id-ID')}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          {/* Edit & Delete only */}
-                          {(user?.role === 'admin' || catatan.user_id === user?.id) && (
-                            <>
-                              <button onClick={() => handleEdit(catatan)} className="p-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors">
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => setDeleteDialog({ isOpen: true, id: catatan.id, imageUrl: catatan.gambar_url })} className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
+                          {/* Edit: bisa dilakukan oleh pemilik catatan atau admin */}
+                          {(user?.role === 'admin' || user?.role === 'superadmin' || catatan.user_id === user?.id) && (
+                            <button onClick={() => handleEdit(catatan)} className="p-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {/* Delete: HANYA administrator */}
+                          {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                            <button onClick={() => setDeleteDialog({ isOpen: true, id: catatan.id, imageUrl: catatan.gambar_url })} className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           )}
                         </div>
                       </div>

@@ -19,7 +19,7 @@ export default function ReportsPage() {
     queryFn: async () => {
       let query = supabase
         .from('tasks')
-        .select('*, users:user_id(username), employees:employee_id(name)')
+        .select('*, users:user_id(username)')
         .order('created_at', { ascending: false });
 
       if (dateRange.from) query = query.gte('created_at', dateRange.from);
@@ -105,7 +105,7 @@ export default function ReportsPage() {
               t.no_telp || '',
               t.cabang || '',
               t.users?.username || '',
-              t.employees?.name || '',
+              t.employee_id || '',
               new Date(t.created_at).toLocaleDateString('id-ID'),
             ]),
           ]

@@ -53,7 +53,7 @@ export default function UsersPage() {
     },
     onSuccess: async () => {
       await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.CREATE_USER, entity: 'users', detail: `Buat user: ${formData.username}` });
-      queryClient.invalidateQueries([QUERY_KEYS.USERS]);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USERS] });
       closeModal();
     },
   });
@@ -63,7 +63,7 @@ export default function UsersPage() {
       const { error } = await supabase.from('users').update({ role: data.role, divisi_id: data.divisi_id || null }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries([QUERY_KEYS.USERS]); closeModal(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USERS] }); closeModal(); },
   });
 
   const deleteMutation = useMutation({
@@ -73,7 +73,7 @@ export default function UsersPage() {
       if (error) throw error;
       await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.DELETE_USER, entity: 'users', entityId: id, detail: `Hapus user: ${targetUser?.username}` });
     },
-    onSuccess: () => queryClient.invalidateQueries([QUERY_KEYS.USERS]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USERS] }),
   });
 
   const resetPasswordMutation = useMutation({

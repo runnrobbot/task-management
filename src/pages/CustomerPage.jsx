@@ -113,7 +113,7 @@ export default function CustomerPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEYS.CUSTOMERS]);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] });
       resetForm();
     },
   });
@@ -125,7 +125,7 @@ export default function CustomerPage() {
       if (error) throw error;
       await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.DELETE_CUSTOMER, entity: 'customers', entityId: id, detail: `Hapus customer ID: ${id}` });
     },
-    onSuccess: () => queryClient.invalidateQueries([QUERY_KEYS.CUSTOMERS]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CUSTOMERS] }),
   });
 
   // ── Helpers ───────────────────────────────────────
@@ -271,15 +271,6 @@ export default function CustomerPage() {
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${formData.is_prioritas ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
-            </div>
-
-            {/* Info: ditambahkan oleh siapa */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5 text-sm text-emerald-700 flex items-center gap-2">
-              <User className="w-4 h-4 shrink-0" />
-              <span>
-                Pelanggan ini akan tercatat sebagai milik akun{' '}
-                <span className="font-bold">{user?.username}</span>
-              </span>
             </div>
 
             {saveMutation.isError && (

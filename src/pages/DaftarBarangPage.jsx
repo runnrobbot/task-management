@@ -74,8 +74,8 @@ export default function DaftarBarangPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEY]);
-      queryClient.invalidateQueries(['daftar_barang_all']); // for CatatanPage dropdown
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['daftar_barang_all'] }); // for CatatanPage dropdown
       resetForm();
     },
   });
@@ -88,8 +88,8 @@ export default function DaftarBarangPage() {
       await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.DELETE_BARANG, entity: 'daftar_barang', entityId: id, detail: `Hapus barang ID: ${id}` });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEY]);
-      queryClient.invalidateQueries(['daftar_barang_all']);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['daftar_barang_all'] });
       setDeleteDialog({ isOpen: false, id: null });
     },
   });
@@ -180,8 +180,8 @@ export default function DaftarBarangPage() {
         count: toInsert.length,
         dupInfo: dupCount > 0 ? ` (${dupCount} duplikat kode di Excel diabaikan)` : '',
       });
-      queryClient.invalidateQueries([QUERY_KEY]);
-      queryClient.invalidateQueries(['daftar_barang_all']);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['daftar_barang_all'] });
     } catch (err) {
       setImportResult({ success: false, error: err.message || 'Terjadi kesalahan saat import.' });
     } finally {

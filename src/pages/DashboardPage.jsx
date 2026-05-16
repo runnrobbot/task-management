@@ -26,8 +26,8 @@ const STATUS_WA_STYLE = {
   'Selesai':         { dot: 'bg-green-500',  badge: 'bg-green-100 text-green-700' },
 };
 
-// TaskCard dengan tombol Action
-function TaskCard({ task, onAction }) {
+// TaskCard dengan tombol Action + Preview
+function TaskCard({ task, onAction, onPreview }) {
   const getStatusColor = (s) => {
     if (s === 'Selesai') return 'bg-green-100 text-green-700 border-green-200';
     if (s === 'Cancel') return 'bg-red-100 text-red-700 border-red-200';
@@ -57,22 +57,25 @@ function TaskCard({ task, onAction }) {
           <p className="text-xs text-primary-800 line-clamp-2">{task.comment}</p>
         </div>
       )}
-      {task.status === 'Selesai' && task.employees && (
-        <div className="flex items-center gap-1 text-xs font-semibold text-green-600 mb-3">
-          <BadgeCheck className="w-3 h-3" /><span>{task.employees.name}</span>
-        </div>
-      )}
       <div className="flex items-center justify-between pt-3 border-t border-slate-100">
         <div className="flex items-center gap-1 text-xs text-slate-400">
           <Calendar className="w-3 h-3" />
           <span>{new Date(task.created_at).toLocaleDateString('id-ID')}</span>
         </div>
-        {onAction && (
-          <button onClick={() => onAction(task)}
-            className="px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg text-xs font-medium hover:bg-primary-100 flex items-center gap-1">
-            <MessageSquare className="w-3 h-3" /> Action
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onPreview && (
+            <button onClick={() => onPreview(task)}
+              className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 flex items-center gap-1 transition-colors">
+              <Eye className="w-3 h-3" /> Preview
+            </button>
+          )}
+          {onAction && (
+            <button onClick={() => onAction(task)}
+              className="px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg text-xs font-medium hover:bg-primary-100 flex items-center gap-1 transition-colors">
+              <MessageSquare className="w-3 h-3" /> Action
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -165,7 +168,7 @@ export default function DashboardPage() {
   const { data: allTasks = [] } = useQuery({
     queryKey: [QUERY_KEYS.TASKS, 'dashboard', effectiveUserId, showAll],
     queryFn: async () => {
-      let q = supabase.from('tasks').select('*, users:user_id(username), employees:employee_id(name, id)').order('created_at', { ascending: false });
+      let q = supabase.from('tasks').select('*, users:user_id(username), employee_id').order('created_at', { ascending: false });
       q = applyFilter(q);
       const { data, error } = await q;
       if (error) throw error;
@@ -178,7 +181,7 @@ export default function DashboardPage() {
     queryKey: [QUERY_KEYS.REMINDERS, effectiveUserId, showAll],
     queryFn: async () => {
       const oneDayAgo = new Date(); oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-      let q = supabase.from('tasks').select('*, users:user_id(username), employees:employee_id(name, id)').eq('status', 'Pending').lt('created_at', oneDayAgo.toISOString()).order('created_at', { ascending: true });
+      let q = supabase.from('tasks').select('*, users:user_id(username), employee_id').eq('status', 'Pending').lt('created_at', oneDayAgo.toISOString()).order('created_at', { ascending: true });
       q = applyFilter(q);
       const { data, error } = await q;
       if (error) throw error;
@@ -190,13 +193,7 @@ export default function DashboardPage() {
   const { data: employeeStats = [] } = useQuery({
     queryKey: [QUERY_KEYS.EMPLOYEE_STATS, effectiveUserId, showAll],
     queryFn: async () => {
-      let q = supabase.from('tasks').select('employee_id, employees:employee_id(name)').eq('status', 'Selesai').not('employee_id', 'is', null);
-      q = applyFilter(q);
-      const { data, error } = await q;
-      if (error) throw error;
-      const acc = {};
-      data.forEach(t => { if (t.employee_id && t.employees) { if (!acc[t.employee_id]) acc[t.employee_id] = { employee_name: t.employees.name, count: 0 }; acc[t.employee_id].count++; } });
-      return Object.values(acc).sort((a, b) => b.count - a.count);
+      return [];
     },
     enabled: !!user && isAdmin,
   });
@@ -232,8 +229,8 @@ export default function DashboardPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['catatan_overdue']);
-      queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
+      queryClient.invalidateQueries({ queryKey: ['catatan_overdue'] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CATATAN] });
       setOverdueModal(null);
     },
   });
@@ -277,13 +274,13 @@ export default function DashboardPage() {
               <Users className="w-4 h-4 text-primary-500 shrink-0" />
               <div className="relative">
                 <select value={selectedUserId || ''} onChange={(e) => setSelectedUserId(e.target.value || null)}
-                  className="pl-1 pr-7 py-0.5 text-sm font-medium text-slate-700 focus:outline-none appearance-none bg-transparent cursor-pointer">
+                  className="pl-2 pr-8 py-1 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors min-w-[160px]">
                   <option value="">Semua Pengguna</option>
                   {allUsers.map(u => (
                     <option key={u.id} value={u.id}>{u.username}{u.role === 'admin' ? ' (Admin)' : ''}</option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
           )}
@@ -389,75 +386,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Task Pending — dengan tombol Action */}
-        <div className="mb-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <CheckSquare className="w-5 h-5 text-primary-500" /> Task Pending
-            <span className="text-sm font-normal text-slate-400 ml-1">({pendingTasks.length})</span>
-          </h3>
-          {pendingTasks.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow p-8 text-center">
-              <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500">Tidak ada task pending.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pendingTasks.map((task, index) => (
-                <motion.div key={task.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
-                  <TaskCard task={task} onAction={(t) => setTaskActionModal({ isOpen: true, task: t })} />
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Task Selesai / Cancel */}
-        <div className="mb-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-500" /> Task Selesai / Cancel
-            <span className="text-sm font-normal text-slate-400 ml-1">({completedTasks.length})</span>
-          </h3>
-          {completedTasks.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow p-8 text-center">
-              <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500">Belum ada task selesai atau cancel.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {completedTasks.slice(0, 9).map((task, index) => (
-                <motion.div key={task.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
-                  <TaskCard task={task} />
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Employee Ranking (admin only) */}
-        {isAdmin && employeeStats.length > 0 && (
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-orange-500" /> Ranking Karyawan
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {employeeStats.map((emp, index) => (
-                <motion.div key={index} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.05 }}
-                  className="bg-white rounded-2xl shadow-md p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-bold text-sm">{index + 1}</div>
-                    <div><h4 className="font-bold text-slate-900">{emp.employee_name}</h4><p className="text-xs text-slate-500">Karyawan</p></div>
-                  </div>
-                  <div className="text-center py-3 bg-slate-50 rounded-lg">
-                    <p className="text-3xl font-bold text-slate-900">{emp.count}</p>
-                    <p className="text-sm text-slate-500">Task Selesai</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Overdue Catatan */}
+        {/* Overdue Catatan — ditaruh PALING ATAS sebelum Task Pending */}
         {overdueCatatan.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -488,7 +417,6 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-1.5 px-2 py-1.5 bg-red-50 rounded-lg mb-2">
                       <CalendarX className="w-3 h-3 text-red-500 shrink-0" />
                       <span className="text-xs text-red-700 font-semibold">Lewat {overdueLabel}</span>
-                      <span className="text-xs text-red-400 ml-auto">{new Date(c.deadline).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100">
                       <span>{c.users?.username}</span>
@@ -508,6 +436,52 @@ export default function DashboardPage() {
                   </motion.div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Task Pending — dengan tombol Action + Preview */}
+        <div className="mb-8">
+          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <CheckSquare className="w-5 h-5 text-primary-500" /> Task Pending
+            <span className="text-sm font-normal text-slate-400 ml-1">({pendingTasks.length})</span>
+          </h3>
+          {pendingTasks.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow p-8 text-center">
+              <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">Tidak ada task pending.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {pendingTasks.map((task, index) => (
+                <motion.div key={task.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
+                  <TaskCard task={task} onAction={(t) => setTaskActionModal({ isOpen: true, task: t })} onPreview={(t) => setPreviewCatatan(t)} />
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Employee Ranking (admin only) */}
+        {isAdmin && employeeStats.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-orange-500" /> Ranking Karyawan
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {employeeStats.map((emp, index) => (
+                <motion.div key={index} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.05 }}
+                  className="bg-white rounded-2xl shadow-md p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-bold text-sm">{index + 1}</div>
+                    <div><h4 className="font-bold text-slate-900">{emp.employee_name}</h4><p className="text-xs text-slate-500">Karyawan</p></div>
+                  </div>
+                  <div className="text-center py-3 bg-slate-50 rounded-lg">
+                    <p className="text-3xl font-bold text-slate-900">{emp.count}</p>
+                    <p className="text-sm text-slate-500">Task Selesai</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         )}
@@ -551,6 +525,28 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Task Selesai / Cancel — PALING BAWAH */}
+        <div className="mb-8">
+          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-500" /> Task Selesai / Cancel
+            <span className="text-sm font-normal text-slate-400 ml-1">({completedTasks.length})</span>
+          </h3>
+          {completedTasks.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow p-8 text-center">
+              <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">Belum ada task selesai atau cancel.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {completedTasks.slice(0, 9).map((task, index) => (
+                <motion.div key={task.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
+                  <TaskCard task={task} />
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
 
       </motion.div>
 
@@ -618,8 +614,8 @@ export default function DashboardPage() {
         task={taskActionModal.task}
         onClose={() => setTaskActionModal({ isOpen: false, task: null })}
         onSuccess={() => {
-          queryClient.invalidateQueries([QUERY_KEYS.TASKS, 'dashboard']);
-          queryClient.invalidateQueries([QUERY_KEYS.REMINDERS]);
+          queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.TASKS, 'dashboard'] });
+          queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.REMINDERS] });
         }}
       />
 

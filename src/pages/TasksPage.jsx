@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   CheckSquare, Clock, CheckCircle, XCircle, Calendar, User, MessageSquare,
-  BadgeCheck, Search, Filter, Phone, AlertCircle, Loader2, ImagePlus, X as XIcon, Eye
+  BadgeCheck, Search, Filter, Phone, AlertCircle, Loader2, ImagePlus, X as XIcon, Eye, ChevronDown
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -37,24 +37,6 @@ export function TaskActionModal({ isOpen, task, onClose, onSuccess }) {
   const [loadingCatatan, setLoadingCatatan] = useState(false);
   const [commentImageFile, setCommentImageFile] = useState(null);
   const [commentImagePreview, setCommentImagePreview] = useState(null);
-  const [myEmployeeId, setMyEmployeeId] = useState(null);
-  const [myEmployeeName, setMyEmployeeName] = useState('');
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchMyEmployee = async () => {
-      const { data } = await supabase.from('employees').select('id, name').order('name');
-      if (data && data.length > 0) {
-        const matched = data.find(e =>
-          e.name.toLowerCase().includes(user.username?.toLowerCase() || '') ||
-          user.username?.toLowerCase().includes(e.name.toLowerCase())
-        );
-        if (matched) { setMyEmployeeId(matched.id); setMyEmployeeName(matched.name); }
-      }
-    };
-    fetchMyEmployee();
-  }, [user]);
-
   useEffect(() => {
     if (isOpen && task) {
       setCommentImageFile(null);
@@ -81,20 +63,20 @@ export function TaskActionModal({ isOpen, task, onClose, onSuccess }) {
   };
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, status_task, comment, employee_id, imgFile }) => {
+    mutationFn: async ({ id, status_task, comment, imgFile }) => {
       let commentImageUrl = null;
       if (imgFile) commentImageUrl = await uploadCommentImage(imgFile);
-      const payload = { status: status_task, comment, employee_id, updated_at: new Date().toISOString() };
+      const payload = { status: status_task, comment, updated_at: new Date().toISOString() };
       if (commentImageUrl) payload.comment_image_url = commentImageUrl;
       const { error } = await supabase.from('tasks').update(payload).eq('id', id);
       if (error) throw error;
       await logActivity({ userId: user.id, username: user.username, action: AUDIT_ACTIONS.UPDATE_TASK, entity: 'tasks', entityId: id, detail: `Update status task #${id} → ${status_task}` });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEYS.TASKS]);
-      queryClient.invalidateQueries([QUERY_KEYS.STATS]);
-      queryClient.invalidateQueries([QUERY_KEYS.REMINDERS]);
-      queryClient.invalidateQueries([QUERY_KEYS.CATATAN]);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.TASKS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.STATS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.REMINDERS] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.CATATAN] });
       handleClose();
       onSuccess?.();
     },
@@ -127,12 +109,10 @@ export function TaskActionModal({ isOpen, task, onClose, onSuccess }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const employeeId = myEmployeeId || task?.employee_id || null;
     updateMutation.mutate({
       id: task.id,
       status_task: statusTaskValue,
       comment: formData.get('comment'),
-      employee_id: employeeId,
       imgFile: commentImageFile,
     });
   };
@@ -162,7 +142,7 @@ export function TaskActionModal({ isOpen, task, onClose, onSuccess }) {
           <label className="block text-sm font-semibold text-slate-700 mb-1">Dikerjakan Oleh</label>
           <div className="px-4 py-2 bg-primary-50 border border-primary-200 rounded-lg text-sm text-primary-800 font-medium flex items-center gap-2">
             <BadgeCheck className="w-4 h-4 text-primary-500" />
-            {myEmployeeName || task?.employees?.name || user?.username || 'Kamu'}
+            {user?.username || 'Kamu'}
           </div>
         </div>
 
@@ -243,22 +223,20 @@ export default function TasksPage() {
   const [previewCatatan, setPreviewCatatan] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [kategoriFilter, setKategoriFilter] = useState('');
   const [page, setPage] = useState(1);
 
   const { data: result = { data: [], count: 0, totalPages: 1 }, isLoading } = useQuery({
-    queryKey: [QUERY_KEYS.TASKS, { search, statusFilter, kategoriFilter, page, isAdmin, userId }],
+    queryKey: [QUERY_KEYS.TASKS, { search, statusFilter, page, isAdmin, userId }],
     queryFn: async () => {
       let query = supabase
         .from('tasks')
-        .select('*, users:user_id(username), employees:employee_id(id, name)', { count: 'exact' })
+        .select('*, users:user_id(username)', { count: 'exact' })
         .order('created_at', { ascending: false });
 
       query = applyUserFilter(query);
 
       if (search) query = query.or(`judul_task.ilike.%${search}%,deskripsi.ilike.%${search}%,nama_customer.ilike.%${search}%`);
       if (statusFilter) query = query.eq('status', statusFilter);
-      if (kategoriFilter) query = query.eq('kategori', kategoriFilter);
 
       const from = (page - 1) * PAGE_SIZE;
       query = query.range(from, from + PAGE_SIZE - 1);
@@ -293,7 +271,6 @@ export default function TasksPage() {
 
   const handleSearchChange = (val) => { setSearch(val); setPage(1); };
   const handleStatusChange = (val) => { setStatusFilter(val); setPage(1); };
-  const handleKategoriChange = (val) => { setKategoriFilter(val); setPage(1); };
 
   return (
     <div className="min-h-screen">
@@ -307,27 +284,24 @@ export default function TasksPage() {
           <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-600">
             <Filter className="w-4 h-4" /> Filter & Pencarian
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input type="text" placeholder="Cari judul, deskripsi, customer..." value={search} onChange={(e) => handleSearchChange(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
             </div>
-            <select value={statusFilter} onChange={(e) => handleStatusChange(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-              <option value="">Semua Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Selesai">Selesai</option>
-              <option value="Cancel">Cancel</option>
-            </select>
-            <select value={kategoriFilter} onChange={(e) => handleKategoriChange(e.target.value)} className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-              <option value="">Semua Kategori</option>
-              <option value="Offline">Offline</option>
-              <option value="User">User</option>
-              <option value="Lelang">Lelang</option>
-            </select>
+            <div className="relative">
+              <select value={statusFilter} onChange={(e) => handleStatusChange(e.target.value)} className="w-full pl-4 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white cursor-pointer text-slate-700 hover:border-primary-400 transition-colors">
+                <option value="">Semua Status</option>
+                <option value="Pending">Pending</option>
+                <option value="Selesai">Selesai</option>
+                <option value="Cancel">Cancel</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-          {(search || statusFilter || kategoriFilter) && (
-            <button onClick={() => { handleSearchChange(''); handleStatusChange(''); handleKategoriChange(''); }} className="mt-3 text-sm text-red-500 hover:text-red-700 underline">
+          {(search || statusFilter) && (
+            <button onClick={() => { handleSearchChange(''); handleStatusChange(''); }} className="mt-3 text-sm text-red-500 hover:text-red-700 underline">
               Reset Filter
             </button>
           )}
@@ -375,11 +349,6 @@ export default function TasksPage() {
                         {task.comment_image_url && (
                           <img src={task.comment_image_url} alt="Foto keterangan" className="mt-2 rounded-lg max-h-32 object-cover cursor-pointer" onClick={() => window.open(task.comment_image_url, '_blank')} />
                         )}
-                      </div>
-                    )}
-                    {task.status === 'Selesai' && task.employees && (
-                      <div className="flex items-center gap-2 text-sm font-semibold text-green-600 mb-4">
-                        <BadgeCheck className="w-4 h-4" /><span>Dikerjakan: {task.employees.name}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between pt-4 border-t border-slate-200">

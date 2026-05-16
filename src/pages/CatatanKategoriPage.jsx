@@ -38,7 +38,7 @@ export default function CatatanKategoriPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries([QUERY_KEY]);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       setNamaKategori('');
       setIsModalOpen(false);
     },
@@ -49,7 +49,7 @@ export default function CatatanKategoriPage() {
       const { error } = await supabase.from('catatan_kategori').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries([QUERY_KEY]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
   });
 
   const handleSubmit = (e) => {

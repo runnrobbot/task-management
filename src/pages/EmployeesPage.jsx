@@ -68,7 +68,7 @@ export default function EmployeesPage() {
       const { error } = await supabase.from('employees').insert([{ name: data.name, division_id: data.division_id || null }]);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries([QUERY_KEYS.EMPLOYEES]); closeModal(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EMPLOYEES] }); closeModal(); },
   });
 
   const updateMutation = useMutation({
@@ -76,7 +76,7 @@ export default function EmployeesPage() {
       const { error } = await supabase.from('employees').update({ name: data.name, division_id: data.division_id || null }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries([QUERY_KEYS.EMPLOYEES]); closeModal(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EMPLOYEES] }); closeModal(); },
   });
 
   const deleteMutation = useMutation({
@@ -84,7 +84,7 @@ export default function EmployeesPage() {
       const { error } = await supabase.from('employees').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries([QUERY_KEYS.EMPLOYEES]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EMPLOYEES] }),
   });
 
   const openCreateModal = () => { setFormData({ id: '', name: '', division_id: '' }); setIsEditMode(false); setIsModalOpen(true); };
