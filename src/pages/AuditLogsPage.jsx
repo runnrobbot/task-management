@@ -212,7 +212,7 @@ export default function AuditLogsPage() {
             {totalPages > 1 && (
               <div className="mt-4">
                 <Pagination
-                  currentPage={page}
+                  page={page}
                   totalPages={totalPages}
                   onPageChange={setPage}
                 />
